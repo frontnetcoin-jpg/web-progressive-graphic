@@ -1,0 +1,15 @@
+[package]
+name = "wpg-wasm"
+version = "0.1.0"
+edition = "2021"
+authors = ["WPG Format Team"]
+description = "WebAssembly client-side decoder for WPG (.wpg) next-gen image format"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+avif-serialize = "0.8.9"
+byteorder = "1.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

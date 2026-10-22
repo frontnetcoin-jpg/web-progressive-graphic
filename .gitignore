@@ -1,0 +1,8 @@
+/target
+/dist_release
+*.zip
+*.log
+
+# Explicitly ensure todo.md is tracked
+!todo.md
+!TODO.md
