@@ -36,6 +36,15 @@
 9. [Verification, Benchmarking & Metrics](#9-verification-benchmarking--metrics)
    - [9.1 Metric Definitions (PSNR & SSIM)](#91-metric-definitions-psnr--ssim)
    - [9.2 True AVIF Bitstream Decoding](#92-true-avif-bitstream-decoding)
+10. [Client-Side WebAssembly & NPM Distribution](#10-client-side-webassembly--npm-distribution)
+    - [10.1 WebAssembly Client-Side Decoder (`wpg-decoder.wasm`)](#101-webassembly-client-side-decoder-wpg-decoderwasm)
+    - [10.2 NPM Package (`wpg-img`)](#102-npm-package-wpg-img)
+    - [10.3 Standalone Binary Distribution](#103-standalone-binary-distribution)
+11. [SEO & Core Web Vitals Engineering](#11-seo--core-web-vitals-engineering)
+    - [11.1 Cumulative Layout Shift (CLS: 0.000)](#111-cumulative-layout-shift-cls-0000)
+    - [11.2 Largest Contentful Paint (LCP)](#112-largest-contentful-paint-lcp)
+    - [11.3 Crawler Indexing & Fallbacks](#113-crawler-indexing--fallbacks)
+12. [Local Testing Playground (`playground/`)](#12-local-testing-playground-playground)
 
 ---
 
