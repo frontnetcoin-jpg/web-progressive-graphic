@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WPG Local Testing Playground — <wpg-img></title>
-  <!-- Load the WPG custom element with offline Wasm decoder -->
-  <script type="module" src="../wpg-element.js"></script>
+  <!-- Load standalone bundle (supports both http:// and file:/// protocols) -->
+  <script src="wpg-bundle.js"></script>
   <style>
     :root {
       --bg: #0b0f19;
@@ -31,12 +31,12 @@
       align-items: center;
     }
     .container {
-      max-width: 1000px;
+      max-width: 1040px;
       width: 100%;
     }
     header {
       text-align: center;
-      margin-bottom: 2.5rem;
+      margin-bottom: 2rem;
     }
     h1 {
       font-size: 2.4rem;
@@ -69,9 +69,14 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
+    .badge-success {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
       gap: 2rem;
       margin-bottom: 2.5rem;
     }
@@ -99,8 +104,8 @@
     }
     .preview-box {
       width: 100%;
-      min-height: 280px;
-      background: rgba(0, 0, 0, 0.3);
+      height: 360px;
+      background: #090d16;
       border-radius: 12px;
       border: 1px dashed var(--border);
       display: flex;
@@ -112,7 +117,6 @@
     wpg-img {
       width: 100%;
       height: 100%;
-      max-height: 400px;
       display: block;
       border-radius: 8px;
     }
@@ -121,6 +125,7 @@
       display: flex;
       gap: 0.75rem;
       align-items: center;
+      flex-wrap: wrap;
     }
     input[type="file"] {
       display: none;
@@ -159,7 +164,7 @@
       border-collapse: collapse;
     }
     .meta-table td {
-      padding: 0.4rem 0;
+      padding: 0.45rem 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
     .meta-table td:first-child {
@@ -178,6 +183,7 @@
       gap: 1.5rem;
       justify-content: center;
       margin-top: 2rem;
+      flex-wrap: wrap;
     }
     .footer-links a {
       color: var(--accent);
@@ -186,14 +192,23 @@
     .footer-links a:hover {
       text-decoration: underline;
     }
+    #drop-hint {
+      position: absolute;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      pointer-events: none;
+      text-align: center;
+      padding: 1rem;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>⚡ WPG Local Testing Playground</h1>
-      <p class="subtitle">Experience offline WebAssembly decoding & 16-byte zero-CLS micro-previews locally</p>
+      <p class="subtitle">Experience offline WebAssembly decoding & 16-byte zero-CLS micro-previews</p>
       <div class="badge-row">
+        <span class="badge" id="env-badge">Detecting...</span>
         <span class="badge">Pure Rust AV1 Intra</span>
         <span class="badge">16B Zero-CLS Preview</span>
         <span class="badge">Offline 61KB Wasm</span>
@@ -205,7 +220,7 @@
       <!-- Card 1: Sample WPG Element -->
       <div class="card">
         <h2>🖼️ Output Sample Test</h2>
-        <p class="desc">Loads the local encoded test image using the custom <code>&lt;wpg-img&gt;</code> element.</p>
+        <p class="desc">Loads the local encoded sample image using the <code>&lt;wpg-img&gt;</code> element.</p>
         <div class="preview-box">
           <wpg-img id="sample-wpg" src="output/sample.wpg" alt="Sample WPG Image"></wpg-img>
         </div>
@@ -218,11 +233,11 @@
       <!-- Card 2: Interactive Custom WPG Inspector -->
       <div class="card">
         <h2>🔬 Inspect Any Local .wpg File</h2>
-        <p class="desc">Pick or drop any <code>.wpg</code> file from your machine to decode client-side via Wasm.</p>
+        <p class="desc">Pick or drop any <code>.wpg</code> file to decode in-memory via client-side WebAssembly.</p>
         <div class="preview-box" id="drop-area">
           <wpg-img id="custom-wpg" alt="Custom WPG Preview"></wpg-img>
-          <div id="drop-hint" style="color: var(--text-muted); font-size: 0.9rem; pointer-events: none;">
-            Drop a .wpg file here or click below
+          <div id="drop-hint">
+            📁 Drop any <b>.wpg</b> file here<br><span style="font-size: 0.8rem; opacity: 0.7;">or click Choose .wpg File below</span>
           </div>
         </div>
         <div class="file-input-wrapper">
@@ -237,6 +252,7 @@
             <tr><td>Header Magic</td><td id="meta-magic">-</td></tr>
             <tr><td>Dimensions</td><td id="meta-dims">-</td></tr>
             <tr><td>Mode & Quality</td><td id="meta-mode">-</td></tr>
+            <tr><td>Decode Status</td><td id="meta-status" style="color: #34d399;">Decoded via Client Wasm</td></tr>
           </tbody>
         </table>
       </div>
@@ -250,13 +266,38 @@
   </div>
 
   <script>
-    function reloadSample() {
-      const el = document.getElementById('sample-wpg');
-      const src = el.getAttribute('src');
-      el.removeAttribute('src');
+    const SAMPLE_WPG_B64 = "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";
+
+    const envBadge = document.getElementById('env-badge');
+    const isFileProto = location.protocol === 'file:';
+    if (isFileProto) {
+      envBadge.textContent = '⚡ Offline File Mode (Embedded Wasm)';
+      envBadge.className = 'badge badge-success';
+    } else {
+      envBadge.textContent = '🌐 HTTP Server Mode';
+      envBadge.className = 'badge badge-success';
+    }
+
+    // Auto-load sample for file:// mode
+    const sampleEl = document.getElementById('sample-wpg');
+    if (isFileProto && sampleEl) {
       setTimeout(() => {
-        el.setAttribute('src', src.split('?')[0] + '?t=' + Date.now());
-      }, 50);
+        const bytes = Uint8Array.from(atob(SAMPLE_WPG_B64), c => c.charCodeAt(0));
+        if (sampleEl.loadBytes) sampleEl.loadBytes(bytes);
+      }, 100);
+    }
+
+    function reloadSample() {
+      if (isFileProto) {
+        const bytes = Uint8Array.from(atob(SAMPLE_WPG_B64), c => c.charCodeAt(0));
+        if (sampleEl.loadBytes) sampleEl.loadBytes(bytes);
+      } else {
+        const src = sampleEl.getAttribute('src');
+        sampleEl.removeAttribute('src');
+        setTimeout(() => {
+          sampleEl.setAttribute('src', src.split('?')[0] + '?t=' + Date.now());
+        }, 50);
+      }
     }
 
     const fileInput = document.getElementById('wpg-file-input');
@@ -299,11 +340,19 @@
       dropHint.style.display = 'none';
       metaTable.style.display = 'table';
 
-      const blobUrl = URL.createObjectURL(file);
-      customImg.setAttribute('src', blobUrl);
+      // Read arrayBuffer directly into memory (works on file:// and http://)
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+
+      // Pass directly into the custom element for zero-copy in-memory decode
+      if (customImg && customImg.loadBytes) {
+        await customImg.loadBytes(bytes);
+      } else {
+        const blobUrl = URL.createObjectURL(file);
+        customImg.setAttribute('src', blobUrl);
+      }
 
       // Parse 16-byte fixed header
-      const buffer = await file.slice(0, 16).arrayBuffer();
       const view = new DataView(buffer);
       const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2)) + ' 0x' + view.getUint8(3).toString(16);
       const width = (view.getUint8(4) << 16) | (view.getUint8(5) << 8) | view.getUint8(6);

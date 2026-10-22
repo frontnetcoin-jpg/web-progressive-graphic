@@ -6,3 +6,11 @@
 # Local scratch & task lists
 todo.md
 TODO.md
+
+# Playground test outputs (preserve starter samples)
+playground/input/*
+!playground/input/sample.png
+playground/output/*
+!playground/output/sample.wpg
+!playground/output/sample-decoded.png
+!playground/output/sample-preview.png
