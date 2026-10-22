@@ -7,7 +7,11 @@
  */
 let wpgWasmModule = null;
 
-export async function getWpgWasm(wasmUrl = '/wpg-decoder.wasm') {
+const DEFAULT_WASM_URL = typeof import.meta !== 'undefined' && import.meta.url 
+    ? new URL('./wpg-decoder.wasm', import.meta.url).href 
+    : '/wpg-decoder.wasm';
+
+export async function getWpgWasm(wasmUrl = DEFAULT_WASM_URL) {
     if (wpgWasmModule) return wpgWasmModule;
     try {
         const resp = await fetch(wasmUrl);
@@ -124,7 +128,7 @@ export class WpgImageElement extends HTMLElement {
             }
 
             // 2. 100% Client-Side Wasm Decoding (Offline)
-            const wasmUrl = this.getAttribute('wasm-url') || '/wpg-decoder.wasm';
+            const wasmUrl = this.getAttribute('wasm-url') || DEFAULT_WASM_URL;
             const wasm = await getWpgWasm(wasmUrl);
             let decodedSuccessfully = false;
 

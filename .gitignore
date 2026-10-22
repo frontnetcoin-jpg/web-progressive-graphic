@@ -3,6 +3,6 @@
 *.zip
 *.log
 
-# Explicitly ensure todo.md is tracked
-!todo.md
-!TODO.md
+# Local scratch & task lists
+todo.md
+TODO.md

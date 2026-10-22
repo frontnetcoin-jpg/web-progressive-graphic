@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WPG Local Testing Playground — <wpg-img></title>
+  <!-- Load the WPG custom element with offline Wasm decoder -->
+  <script type="module" src="../wpg-element.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(255, 255, 255, 0.04);
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #38bdf8;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    body {
+      background: radial-gradient(circle at 50% 0%, #1e293b, var(--bg));
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 1000px;
+      width: 100%;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #fff 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+    .badge-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+    .badge {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent);
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 2rem;
+      margin-bottom: 2.5rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+    }
+    .card h2 {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card p.desc {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.25rem;
+    }
+    .preview-box {
+      width: 100%;
+      min-height: 280px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      border: 1px dashed var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    wpg-img {
+      width: 100%;
+      height: 100%;
+      max-height: 400px;
+      display: block;
+      border-radius: 8px;
+    }
+    .file-input-wrapper {
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .btn {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #fff;
+      padding: 0.65rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn:hover {
+      background: linear-gradient(135deg, #38bdf8, #0284c7);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: none;
+    }
+    .meta-table {
+      width: 100%;
+      font-size: 0.85rem;
+      margin-top: 1rem;
+      border-collapse: collapse;
+    }
+    .meta-table td {
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .meta-table td:first-child {
+      color: var(--text-muted);
+      width: 40%;
+    }
+    .meta-table td:last-child {
+      font-family: monospace;
+      color: #7dd3fc;
+    }
+    .footer-links {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      margin-top: 2rem;
+    }
+    .footer-links a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚡ WPG Local Testing Playground</h1>
+      <p class="subtitle">Experience offline WebAssembly decoding & 16-byte zero-CLS micro-previews locally</p>
+      <div class="badge-row">
+        <span class="badge">Pure Rust AV1 Intra</span>
+        <span class="badge">16B Zero-CLS Preview</span>
+        <span class="badge">Offline 61KB Wasm</span>
+        <span class="badge">Film Grain Synthesis</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Card 1: Sample WPG Element -->
+      <div class="card">
+        <h2>🖼️ Output Sample Test</h2>
+        <p class="desc">Loads the local encoded test image using the custom <code>&lt;wpg-img&gt;</code> element.</p>
+        <div class="preview-box">
+          <wpg-img id="sample-wpg" src="output/sample.wpg" alt="Sample WPG Image"></wpg-img>
+        </div>
+        <div class="file-input-wrapper">
+          <button class="btn btn-secondary" onclick="reloadSample()">🔄 Reload Preview</button>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Watch the instant 16B blur cross-fade</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Interactive Custom WPG Inspector -->
+      <div class="card">
+        <h2>🔬 Inspect Any Local .wpg File</h2>
+        <p class="desc">Pick or drop any <code>.wpg</code> file from your machine to decode client-side via Wasm.</p>
+        <div class="preview-box" id="drop-area">
+          <wpg-img id="custom-wpg" alt="Custom WPG Preview"></wpg-img>
+          <div id="drop-hint" style="color: var(--text-muted); font-size: 0.9rem; pointer-events: none;">
+            Drop a .wpg file here or click below
+          </div>
+        </div>
+        <div class="file-input-wrapper">
+          <label class="btn" for="wpg-file-input">📂 Choose .wpg File</label>
+          <input type="file" id="wpg-file-input" accept=".wpg">
+        </div>
+
+        <table class="meta-table" id="meta-table" style="display: none;">
+          <tbody>
+            <tr><td>File Name</td><td id="meta-name">-</td></tr>
+            <tr><td>File Size</td><td id="meta-size">-</td></tr>
+            <tr><td>Header Magic</td><td id="meta-magic">-</td></tr>
+            <tr><td>Dimensions</td><td id="meta-dims">-</td></tr>
+            <tr><td>Mode & Quality</td><td id="meta-mode">-</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer-links">
+      <a href="http://localhost:3000" target="_blank">🌐 Open Showcase GUI (Port 3000)</a>
+      <a href="../README.md" target="_blank">📖 Read Full README</a>
+      <a href="https://github.com/frontnetcoin-jpg/web-progressive-graphic" target="_blank">⭐ GitHub Repository</a>
+    </div>
+  </div>
+
+  <script>
+    function reloadSample() {
+      const el = document.getElementById('sample-wpg');
+      const src = el.getAttribute('src');
+      el.removeAttribute('src');
+      setTimeout(() => {
+        el.setAttribute('src', src.split('?')[0] + '?t=' + Date.now());
+      }, 50);
+    }
+
+    const fileInput = document.getElementById('wpg-file-input');
+    const customImg = document.getElementById('custom-wpg');
+    const dropHint = document.getElementById('drop-hint');
+    const metaTable = document.getElementById('meta-table');
+    const dropArea = document.getElementById('drop-area');
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    ['dragenter', 'dragover'].forEach(name => {
+      dropArea.addEventListener(name, (e) => {
+        e.preventDefault();
+        dropArea.style.borderColor = 'var(--accent)';
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(name => {
+      dropArea.addEventListener(name, (e) => {
+        e.preventDefault();
+        dropArea.style.borderColor = 'var(--border)';
+      });
+    });
+
+    dropArea.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    async function handleFile(file) {
+      if (!file.name.endsWith('.wpg')) {
+        alert('Please select a valid .wpg file!');
+        return;
+      }
+      dropHint.style.display = 'none';
+      metaTable.style.display = 'table';
+
+      const blobUrl = URL.createObjectURL(file);
+      customImg.setAttribute('src', blobUrl);
+
+      // Parse 16-byte fixed header
+      const buffer = await file.slice(0, 16).arrayBuffer();
+      const view = new DataView(buffer);
+      const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2)) + ' 0x' + view.getUint8(3).toString(16);
+      const width = (view.getUint8(4) << 16) | (view.getUint8(5) << 8) | view.getUint8(6);
+      const height = (view.getUint8(7) << 16) | (view.getUint8(8) << 8) | view.getUint8(9);
+      const mode = view.getUint8(10);
+      const quality = view.getUint8(14);
+
+      const modeNames = ['Mode 0: AV1 Enhanced Intra', 'Mode 1: Palette Lossless', 'Mode 2: Modular YCoCg-R'];
+
+      document.getElementById('meta-name').textContent = file.name;
+      document.getElementById('meta-size').textContent = (file.size / 1024).toFixed(2) + ' KB (' + file.size.toLocaleString() + ' B)';
+      document.getElementById('meta-magic').textContent = magic;
+      document.getElementById('meta-dims').textContent = `${width} × ${height} px`;
+      document.getElementById('meta-mode').textContent = `${modeNames[mode] || 'Mode ' + mode} (Q${quality})`;
+    }
+  </script>
+</body>
+</html>

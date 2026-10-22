@@ -87,19 +87,14 @@
 ---
 
 ### 📌 Βήμα 2: Git Commit & Σύνδεση με GitHub
-- [ ] Έλεγχος των αρχείων προς commit (`git status`).
-- [ ] Αρχικό commit ολόκληρου του project:
+- [x] Έλεγχος των αρχείων προς commit (`git status`).
+- [x] Αρχικό commit ολόκληρου του project (44 αρχεία, 8298 γραμμές):
   ```powershell
   git add .
-  git commit -m "feat: initial release of WPG image format v1.0.0"
+  git commit -m "feat: initial release of WPG (Web Progressive Graphic) v1.0.0"
   ```
-- [ ] Δημιουργία public repository στο GitHub προφίλ σου (π.χ. `github.com/<username>/wpg`).
-- [ ] Σύνδεση remote και push:
-  ```powershell
-  git remote add origin https://github.com/<username>/wpg.git
-  git branch -M master
-  git push -u origin master
-  ```
+- [x] Δημιουργία public repository: [frontnetcoin-jpg/web-progressive-graphic](https://github.com/frontnetcoin-jpg/web-progressive-graphic).
+- [x] Σύνδεση remote και push στο branch `main` (`git push -u origin main`).
 - [ ] Δημιουργία και push του πρώτου release tag:
   ```powershell
   git tag v1.0.0
