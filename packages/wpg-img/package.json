@@ -38,6 +38,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wpg-format/wpg.git"
+    "url": "git+https://github.com/frontnetcoin-jpg/web-progressive-graphic.git"
   }
 }
