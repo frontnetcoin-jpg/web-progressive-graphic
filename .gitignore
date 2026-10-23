@@ -3,9 +3,11 @@
 *.zip
 *.log
 
-# Local scratch & task lists
+# Local scratch, guides & task lists
 todo.md
 TODO.md
+INTEGRATION_GUIDE.md
+integration-guide.md
 
 # Playground test outputs (preserve starter samples)
 playground/input/*
