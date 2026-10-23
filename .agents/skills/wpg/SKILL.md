@@ -183,4 +183,6 @@ description: >-
    - Το `crates/wpg-wasm` διατηρείται εξαιρετικά ελαφρύ (< 65 KB) χωρίς εξαρτήσεις POSIX/libc ώστε να μεταγλωττίζεται αυτόνομα σε `wasm32-unknown-unknown`.
 4. **Master Memory:**
    - Συμβουλευτείτε πάντα το [`MEMORY.md`](file:///c:/Users/user/Desktop/wpg/MEMORY.md) για πλήρεις τεχνικές προδιαγραφές, εξισώσεις και ιστορικό αποφάσεων.
+5. **Ιστορική Διασάφηση (WordPerfect Disambiguation):**
+   - Το WPG (Web Progressive Graphic) είναι σύγχρονο web standard του 2026 και δεν έχει καμία σχέση με το παρωχημένο format των '80s *WordPerfect Graphics* (`.wpg`). Όπως το TypeScript (`.ts`) έναντι του MPEG Transport Stream (`.ts`), η κατάληξη διακρίνεται από το context, το MIME type (`image/wpg`) και τα binary magic bytes `b"WPG\x01"`.
 

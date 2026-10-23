@@ -39,6 +39,10 @@ Every letter of **WPG** reflects a foundational architectural commitment:
   * **Photographic:** AV1 Intra with **Parametric Film Grain Synthesis**, delivering 20% to 35% higher compression than AVIF on real camera photos by stripping sensor noise during encoding and deterministically synthesizing it on the client GPU.
   * **UI & Vectors:** High-speed lossless palette mode (2D RLE + Zstd) and modular reversible YCoCg-R for pixel-perfect diagrams and icons.
 
+> [!NOTE]
+> **Disambiguation / Historical Context:**  
+> **WPG (Web Progressive Graphic)** is a modern open web image standard created in 2026 (MIME: `image/wpg`, magic bytes: `WPG\x01`). It is completely unrelated to the legacy 1980s *WordPerfect Graphics* format (`.wpg`), an obsolete DOS-era word processing clipboard format. Similar to how TypeScript (`.ts`) and MPEG Transport Stream (`.ts`) coexist seamlessly, file extensions in computing are distinguished by context, MIME type, and binary magic signatures.
+
 ---
 
 ## 🌟 Key Innovations & Superiority over AVIF
@@ -353,7 +357,8 @@ cargo test --release
 
 ---
 
-## 📜 License & Acknowledgments
+## 📜 License, Disambiguation & Acknowledgments
 
-WPG is open-source and royalty-free under the **MIT License**.  
-Powered by world-class Rust codecs: [rav1e](https://github.com/xiph/rav1e) and [rav1d](https://github.com/videolan/rav1d).
+* **License:** WPG is open-source and royalty-free under the **MIT License**.
+* **Disambiguation:** *Web Progressive Graphic* (`.wpg`) is an open web image standard and is completely unaffiliated with legacy 1980s WordPerfect Graphics. In modern computing, file extensions are categorized by context, MIME type (`image/wpg`), and magic byte headers (`WPG\x01`).
+* **Codecs:** Powered by world-class Rust codecs: [rav1e](https://github.com/xiph/rav1e) and [rav1d](https://github.com/videolan/rav1d).

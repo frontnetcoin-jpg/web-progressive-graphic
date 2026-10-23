@@ -63,6 +63,9 @@ While **AVIF** demonstrated the power of AV1 video intra-frames for still images
 3. A **parametric film grain engine** estimates high-frequency noise, denoises the base frame prior to AV1 transform coding, and synthesizes natural grain deterministically on the client.
 4. An **adaptive tri-mode engine** selects between AV1 intra-coding for photographs, palette-based 2D RLE for graphics, and reversible YCoCg-R for bit-exact lossless storage.
 
+### 1.1 Historical Disambiguation
+*Web Progressive Graphic* (`.wpg`) is a 2026 web standard designed exclusively for modern HTTP/3 networks and edge delivery. It bears **zero relation** to the legacy 1980s *WordPerfect Graphics* (`.wpg`) vector clipboard format developed for DOS/early Windows office documents. In standard computing practice (such as TypeScript `.ts` vs MPEG Transport Stream `.ts`), file extensions are disambiguated by their domain, MIME type (`image/wpg`), and magic byte headers (`WPG\x01` vs `\xFFWPC`).
+
 ---
 
 ## 2. Binary Format Specification

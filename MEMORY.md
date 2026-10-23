@@ -25,6 +25,11 @@ In the evolutionary history of the World Wide Web, three-letter acronyms define 
 * **NPM Registry Package:** [https://www.npmjs.com/package/wpg-img](https://www.npmjs.com/package/wpg-img) (`wpg-img@1.0.0`)
 * **License:** MIT License (100% royalty-free open standard)
 
+### 1.4 Historical Disambiguation & Industry Precedent
+* **Legacy Format Disambiguation:** In the 1980s, WordPerfect Corporation used `.wpg` for an internal vector clipart format (`\xFFWPC`). It has been obsolete and abandoned for over 30 years and never existed on the web.
+* **Industry Standard Precedents:** 3-letter extension reuse across eras is standard in computing (e.g. TypeScript `.ts` vs MPEG Transport Stream `.ts`, Perl `.pl` vs Prolog `.pl`, MATLAB `.m` vs Objective-C `.m`).
+* **Format Identity:** WPG is defined on the web by MIME type `image/wpg`, custom element `<wpg-img>`, and magic bytes `b"WPG\x01"`. File extensions cannot be trademarked.
+
 ---
 
 ## 2. Complete Binary Format Specification (v1.0)
