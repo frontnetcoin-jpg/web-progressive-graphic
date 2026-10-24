@@ -540,10 +540,10 @@ Set-ItemProperty -Path "$hkcu\.wpg" -Name "PerceivedType" -Value "image"
 
 New-Item -Path "$hkcu\WPGImage" -Force | Out-Null
 Set-ItemProperty -Path "$hkcu\WPGImage" -Name "(Default)" -Value "WPG (Web Progressive Graphic) Image"
-Set-ItemProperty -Path "$hkcu\WPGImage" -Name "Treatment" -Value 0 -Type DWord
+Set-ItemProperty -Path "$hkcu\WPGImage" -Name "Treatment" -Value 2 -Type DWord
 
 New-Item -Path "$hkcu\WPGImage\DefaultIcon" -Force | Out-Null
-Set-ItemProperty -Path "$hkcu\WPGImage\DefaultIcon" -Name "(Default)" -Value '"{viewer}",0'
+Set-ItemProperty -Path "$hkcu\WPGImage\DefaultIcon" -Name "(Default)" -Value "$env:SystemRoot\System32\imageres.dll,-70"
 
 New-Item -Path "$hkcu\WPGImage\shell\open\command" -Force | Out-Null
 Set-ItemProperty -Path "$hkcu\WPGImage\shell\open" -Name "(Default)" -Value "Open with WPG Viewer"
@@ -574,6 +574,9 @@ if (Test-Path "{thumb}") {{
 
     New-Item -Path "$hkcu\WPGImage\ShellEx\$thumbIid" -Force | Out-Null
     Set-ItemProperty -Path "$hkcu\WPGImage\ShellEx\$thumbIid" -Name "(Default)" -Value "$clsid"
+
+    New-Item -Path "$hkcu\SystemFileAssociations\.wpg\ShellEx\$thumbIid" -Force | Out-Null
+    Set-ItemProperty -Path "$hkcu\SystemFileAssociations\.wpg\ShellEx\$thumbIid" -Name "(Default)" -Value "$clsid"
 }}
 
 # Refresh Explorer associations
@@ -613,6 +616,7 @@ $thumbIid = "{E357FCCD-A995-4576-B01F-234630154E96}"
 
 Remove-Item -Path "HKCU:\Software\Classes\.wpg" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "HKCU:\Software\Classes\WPGImage" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "HKCU:\Software\Classes\SystemFileAssociations\.wpg" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "HKCU:\Software\Classes\CLSID\$clsid" -Recurse -Force -ErrorAction SilentlyContinue
 
 $code = '[DllImport("shell32.dll")]public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);'
