@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/wpg-wasm"]
+members = [".", "crates/wpg-wasm", "crates/wpg-thumb"]
 
 [package]
 name = "wpg"

@@ -515,11 +515,14 @@ fn register_windows_shell() -> Result<(), Box<dyn std::error::Error>> {
     let exe_path = std::env::current_exe()?;
     let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new(""));
     let viewer_path = exe_dir.join("wpg-view.exe");
+    let thumb_path = exe_dir.join("wpg_thumb.dll");
     let viewer_str = if viewer_path.exists() {
         viewer_path.to_string_lossy().to_string()
     } else {
         exe_path.to_string_lossy().to_string()
     };
+    let thumb_str = thumb_path.to_string_lossy().to_string();
+    let has_thumb = thumb_path.exists();
     let wpg_str = exe_path.to_string_lossy().to_string();
 
     println!("\n========================================================");
@@ -552,13 +555,33 @@ New-Item -Path "$hkcu\WPGImage\shell\info\command" -Force | Out-Null
 Set-ItemProperty -Path "$hkcu\WPGImage\shell\info" -Name "(Default)" -Value "WPG Image Analysis"
 Set-ItemProperty -Path "$hkcu\WPGImage\shell\info\command" -Name "(Default)" -Value 'cmd /k ""{wpg}" info "%1""'
 
+# Shell Thumbnail Provider (IThumbnailProvider)
+$clsid = "{{6F0E9720-3051-4E78-8319-5A676BE466EC}}"
+$thumbIid = "{{E357FCCD-A995-4576-B01F-234630154E96}}"
+if (Test-Path "{thumb}") {{
+    New-Item -Path "$hkcu\CLSID\$clsid" -Force | Out-Null
+    Set-ItemProperty -Path "$hkcu\CLSID\$clsid" -Name "(Default)" -Value "WPG Thumbnail Provider"
+    Set-ItemProperty -Path "$hkcu\CLSID\$clsid" -Name "DisableProcessIsolation" -Value 1 -Type DWord
+
+    New-Item -Path "$hkcu\CLSID\$clsid\InProcServer32" -Force | Out-Null
+    Set-ItemProperty -Path "$hkcu\CLSID\$clsid\InProcServer32" -Name "(Default)" -Value '{thumb}'
+    Set-ItemProperty -Path "$hkcu\CLSID\$clsid\InProcServer32" -Name "ThreadingModel" -Value "Apartment"
+
+    New-Item -Path "$hkcu\.wpg\ShellEx\$thumbIid" -Force | Out-Null
+    Set-ItemProperty -Path "$hkcu\.wpg\ShellEx\$thumbIid" -Name "(Default)" -Value "$clsid"
+
+    New-Item -Path "$hkcu\WPGImage\ShellEx\$thumbIid" -Force | Out-Null
+    Set-ItemProperty -Path "$hkcu\WPGImage\ShellEx\$thumbIid" -Name "(Default)" -Value "$clsid"
+}}
+
 # Refresh Explorer associations
 $code = '[DllImport("shell32.dll")]public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);'
 $type = Add-Type -MemberDefinition $code -Name ShellUtil -Namespace Win32 -PassThru
 $type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
 "#,
         viewer = viewer_str,
-        wpg = wpg_str
+        wpg = wpg_str,
+        thumb = thumb_str
     );
 
     let status = std::process::Command::new("powershell")
@@ -568,6 +591,9 @@ $type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
     if status.success() {
         println!("✔ Successfully registered .wpg format in Windows Explorer (HKCU)!");
         println!("  • Default viewer: {}", viewer_str);
+        if has_thumb {
+            println!("  • Shell Thumbnail Provider: {} (Live Explorer Previews)", thumb_str);
+        }
         println!("  • Double-click any .wpg file to open instantly in WPG Viewer");
         println!("  • Right-click menu options added: 'Open with WPG Viewer', 'Convert to PNG', 'WPG Image Analysis'\n");
     } else {
@@ -580,8 +606,13 @@ $type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
 fn unregister_windows_shell() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nUnregistering WPG format from Windows Explorer...");
     let unreg_script = r#"
+$clsid = "{6F0E9720-3051-4E78-8319-5A676BE466EC}"
+$thumbIid = "{E357FCCD-A995-4576-B01F-234630154E96}"
+
 Remove-Item -Path "HKCU:\Software\Classes\.wpg" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "HKCU:\Software\Classes\WPGImage" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "HKCU:\Software\Classes\CLSID\$clsid" -Recurse -Force -ErrorAction SilentlyContinue
+
 $code = '[DllImport("shell32.dll")]public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);'
 $type = Add-Type -MemberDefinition $code -Name ShellUtil -Namespace Win32 -PassThru
 $type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
@@ -589,7 +620,7 @@ $type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
     let _ = std::process::Command::new("powershell")
         .args(["-NoProfile", "-Command", unreg_script])
         .status()?;
-    println!("✔ Unregistered .wpg file associations successfully.\n");
+    println!("✔ Unregistered .wpg file associations and thumbnail provider successfully.\n");
     Ok(())
 }
 

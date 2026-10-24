@@ -273,6 +273,49 @@ Convert entire image folders (`.png`, `.jpg`, `.jpeg`, `.webp`) into `.wpg` with
 .\target\release\wpg.exe bench input.png --quality 80
 ```
 
+### 8. Native Desktop Image Viewer:
+```powershell
+.\target\release\wpg.exe view photo.wpg
+# or launch directly:
+.\target\release\wpg-view.exe photo.wpg
+```
+
+### 9. Register in Windows Explorer (1-Click, No Admin Needed):
+```powershell
+.\target\release\wpg.exe register
+```
+*Enables double-click opening, rich right-click context menus, and live Windows Explorer thumbnail previews!*
+
+### 10. Unregister from Windows Explorer:
+```powershell
+.\target\release\wpg.exe unregister
+```
+
+---
+
+## 🪟 Windows Desktop Integration & Shell Thumbnail Provider
+
+WPG provides first-class native Windows OS integration without requiring administrative elevation (written cleanly into `HKCU:\Software\Classes`):
+
+### 🖼️ Live Windows Explorer Thumbnail Provider (`wpg_thumb.dll`)
+* Windows Explorer automatically displays **live image previews** for `.wpg` files in Extra Large, Large, Medium, and Small icon views, as well as the Windows Preview Pane!
+* Implements the high-performance Windows Shell COM COM interface `IThumbnailProvider` and `IInitializeWithFile` in native Rust.
+* Fast, lightweight, and hardware-accelerated: parses the AV1 bitstream on-demand and returns a 32-bit ARGB Device-Independent Bitmap (DIB).
+
+### 🖥️ High-Performance Desktop Viewer (`wpg-view.exe`)
+* **Instant Start (< 10 ms):** Ultra-lean pure Win32 GDI double-buffered canvas with modern dark mode styling (`DwmSetWindowAttribute`).
+* **Interactive Navigation:** Mouse wheel zoom (anchored to cursor position), drag-to-pan, and double-click to fit.
+* **Directory Browsing:** Press `Left Arrow` / `Right Arrow` or `Space` / `Backspace` to cycle through all `.wpg` files in the current folder.
+* **Instant Export:** Press `S` to instantly save the current image as a standard PNG.
+* **Fullscreen & HUD:** Toggle fullscreen with `F` / `F11`, and show/hide the HUD overlay (dimensions, compression ratio, zoom level) with `I`.
+* **Drag-and-Drop:** Drag any `.wpg` file directly onto the viewer window to view it immediately.
+
+### 🖱️ Right-Click Context Menu Options
+Right-clicking any `.wpg` file in Windows Explorer provides:
+1. **Open with WPG Viewer** — Instantly views the image in the native viewer.
+2. **Convert to PNG** — Decodes the `.wpg` file directly into a `.png` next to it.
+3. **WPG Image Analysis** — Runs `wpg info` in a console window displaying dimensions, color mode, compression payload, and grain parameters.
+
 ---
 
 ## 📦 NPM Package (`wpg-img`)
@@ -330,7 +373,8 @@ wpg/
 ├── wpg-decoder.wasm         # Standalone 61 KB WebAssembly client decoder
 ├── wpg-element.js           # Native Web Component (<wpg-img>)
 ├── crates/
-│   └── wpg-wasm/            # Pure Wasm sub-crate (wasm32-unknown-unknown, zero libc)
+│   ├── wpg-wasm/            # Pure Wasm sub-crate (wasm32-unknown-unknown, zero libc)
+│   └── wpg-thumb/           # Native Windows Shell Thumbnail Provider COM DLL (IThumbnailProvider)
 ├── packages/
 │   └── wpg-img/             # NPM package distribution (TypeScript types, ESM, Wasm)
 ├── scripts/
@@ -350,9 +394,10 @@ wpg/
 │   ├── metrics.rs           # Pixel-exact PSNR & SSIM evaluation engine
 │   ├── server.rs            # Embedded Glassmorphic Showcase Server & REST API
 │   └── bin/
-│       ├── wpg.rs           # Unified CLI (encode, decode, batch, bench, info, serve)
+│       ├── wpg.rs           # Unified CLI (encode, decode, batch, bench, info, serve, view, register)
 │       ├── wpg_enc.rs       # Dedicated encoder tool
-│       └── wpg_dec.rs       # Dedicated decoder tool
+│       ├── wpg_dec.rs       # Dedicated decoder tool
+│       └── wpg_view.rs      # High-performance native Win32 GDI desktop viewer
 └── tests/
     └── roundtrip.rs         # Automated bit-exact roundtrip tests
 ```

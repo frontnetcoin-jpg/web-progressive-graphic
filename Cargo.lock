@@ -1480,6 +1480,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wpg-thumb"
+version = "0.1.0"
+dependencies = [
+ "wpg",
+]
+
+[[package]]
 name = "wpg-wasm"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,12 @@
+[package]
+name = "wpg-thumb"
+version = "0.1.0"
+edition = "2024"
+authors = ["WPG Format Team"]
+description = "Windows Shell Thumbnail Provider for WPG (.wpg) Next-Gen Image Format"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wpg = { path = "../.." }

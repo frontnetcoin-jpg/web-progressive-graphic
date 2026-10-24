@@ -100,9 +100,27 @@ description: >-
 # Πληροφορίες Header & Container (Info)
 .\target\release\wpg.exe info output.wpg
 
-# Πλήρες Benchmark (WPG vs PNG vs JPEG vs WebP) με PSNR & SSIM
+# Πλήρες Benchmark (WPG vs AVIF vs PNG vs JPEG vs WebP) με PSNR & SSIM
 .\target\release\wpg.exe bench input.png --quality 80
+
+# Native Desktop Viewer (Υπερταχύ Win32 GDI με Pan & Zoom)
+.\target\release\wpg.exe view output.wpg
+# ή απευθείας:
+.\target\release\wpg-view.exe output.wpg
+
+# Εγγραφή στο Windows Explorer (1-Click, Χωρίς Δικαιώματα Διαχειριστή)
+# Ενεργοποιεί: Διπλό κλικ, Context Menu & Live Explorer Thumbnails (wpg_thumb.dll)
+.\target\release\wpg.exe register
+
+# Κατάργηση εγγραφής από το Windows Explorer:
+.\target\release\wpg.exe unregister
 ```
+
+### Windows Shell Integration & Thumbnail Provider (`wpg_thumb.dll`)
+* **Live Thumbnails στο Windows Explorer:** Υλοποίηση του Windows Shell COM interface `IThumbnailProvider` και `IInitializeWithFile` σε Pure Rust (`crates/wpg-thumb`). Αποκωδικοποιεί αστραπιαία το AV1 bitstream και επιστρέφει hardware-ready 32-bit ARGB DIB bitmaps σε οποιοδήποτε μέγεθος (Extra Large, Large, Medium, Small Icons, και Preview Pane).
+* **Native Desktop Viewer (`wpg-view.exe`):** Αυτόνομο Win32 binary με double-buffered GDI canvas, smooth mouse-wheel zoom, drag-to-pan, directory browsing με βελάκια, PNG export με `S`, fullscreen με `F`/`F11`, overlay HUD με `I`, και drag & drop αρχείων.
+* **Explorer Context Menu:** Δεξί κλικ σε οποιοδήποτε `.wpg` εμφανίζει: "Open with WPG Viewer", "Convert to PNG" και "WPG Image Analysis".
+* **Zero-Admin Registration:** Όλα τα COM CLSID και ProgID κλειδιά καταχωρούνται στο `HKCU:\Software\Classes` χωρίς να ζητείται UAC / Administrator prompt.
 
 ---
 
