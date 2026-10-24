@@ -883,6 +883,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
   <title>WPG Image Format — Next-Gen Web Progressive Graphic</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/2.6.0/uicons-regular-rounded/css/uicons-regular-rounded.css">
   <script src="/wpg-element.js"></script>
   <style>
     :root {
@@ -905,6 +906,26 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       font-family: 'Outfit', -apple-system, sans-serif;
       min-height: 100vh;
       overflow-x: hidden;
+    }
+    .icon-hollow {
+      width: 1.15em;
+      height: 1.15em;
+      display: inline-block;
+      vertical-align: -0.18em;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.85;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    .fi {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: -0.15em;
+      line-height: 1;
+      font-size: 1.1em;
     }
     header {
       padding: 2.5rem 2rem 1.5rem;
@@ -952,10 +973,18 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
     .feature-pill {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--card-border);
-      padding: 0.4rem 0.9rem;
-      border-radius: 8px;
+      padding: 0.45rem 1rem;
+      border-radius: 9999px;
       font-size: 0.85rem;
       color: #cbd5e1;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: all 0.2s ease;
+    }
+    .feature-pill:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
     }
     .main-grid {
       max-width: 1440px;
@@ -1029,6 +1058,10 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       font-size: 0.95rem;
       cursor: pointer;
       transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
     }
     select:focus, button.btn:hover {
       border-color: var(--accent);
@@ -1051,7 +1084,13 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       padding: 0.6rem 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
-    .toggle-row span { font-size: 0.9rem; color: #cbd5e1; }
+    .toggle-row span {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
     .toggle-switch {
       position: relative;
       width: 44px;
@@ -1094,6 +1133,11 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       border-radius: 8px;
       font-size: 0.85rem;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      transition: all 0.2s ease;
     }
     .sample-btn.active {
       border-color: var(--cyan);
@@ -1359,18 +1403,18 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       Engineered on pure AV1 Intra with zero ISOBMFF bloat, film grain synthesis, reversible YCoCg-R transforms, and 16-byte zero-CLS micro-previews.
     </p>
     <div class="features-pill-row">
-      <div class="feature-pill">⚡ Lean Container (-400B vs AVIF)</div>
-      <div class="feature-pill">🎬 Film Grain Synthesis (+30% compression)</div>
-      <div class="feature-pill">🖼️ 16-Byte Instant Micro-Preview</div>
-      <div class="feature-pill">🎨 Dual Mode: AV1 + Palette/Modular</div>
-      <div class="feature-pill">🛡️ Memory-Safe Pure Rust Codec</div>
+      <div class="feature-pill"><i class="fi fi-rr-bolt" style="color: var(--cyan);"></i> Lean Container (-400B vs AVIF)</div>
+      <div class="feature-pill"><i class="fi fi-rr-film" style="color: #ec4899;"></i> Film Grain Synthesis (+30% compression)</div>
+      <div class="feature-pill"><i class="fi fi-rr-picture" style="color: #38bdf8;"></i> 16-Byte Instant Micro-Preview</div>
+      <div class="feature-pill"><i class="fi fi-rr-palette" style="color: #fbbf24;"></i> Dual Mode: AV1 + Palette/Modular</div>
+      <div class="feature-pill"><i class="fi fi-rr-shield-check" style="color: #10b981;"></i> Memory-Safe Pure Rust Codec</div>
     </div>
   </header>
 
   <div class="main-grid">
     <!-- Left Sidebar: Controls -->
     <div class="panel">
-      <h2>⚙️ Codec Controls</h2>
+      <h2><i class="fi fi-rr-settings-sliders" style="color: var(--cyan);"></i> Codec Controls</h2>
 
       <div class="control-group">
         <div class="control-label">
@@ -1410,13 +1454,13 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       <div class="control-group">
         <div class="control-label">Image Orientation & Rotate</div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-          <button class="btn" id="btnRotateCCW" style="padding: 0.5rem;">⟲ Rotate -90°</button>
-          <button class="btn" id="btnRotateCW" style="padding: 0.5rem;">⟳ Rotate +90°</button>
+          <button class="btn" id="btnRotateCCW" style="padding: 0.5rem;"><i class="fi fi-rr-rotate-left"></i> Rotate -90°</button>
+          <button class="btn" id="btnRotateCW" style="padding: 0.5rem;"><i class="fi fi-rr-rotate-right"></i> Rotate +90°</button>
         </div>
       </div>
 
       <div class="toggle-row">
-        <span>🎬 Film Grain Synthesis</span>
+        <span><i class="fi fi-rr-film" style="color: #ec4899;"></i> Film Grain Synthesis</span>
         <label class="toggle-switch">
           <input type="checkbox" id="grainToggle" checked>
           <span class="slider-track"></span>
@@ -1424,7 +1468,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       </div>
 
       <div class="toggle-row">
-        <span>⚡ 16-Byte Micro-Preview</span>
+        <span><i class="fi fi-rr-bolt" style="color: var(--cyan);"></i> 16-Byte Micro-Preview</span>
         <label class="toggle-switch">
           <input type="checkbox" id="previewToggle" checked>
           <span class="slider-track"></span>
@@ -1432,44 +1476,44 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       </div>
 
       <div style="margin-top: 1.5rem;">
-        <button class="btn btn-primary" id="reEncodeBtn">⚡ Re-encode in Real-Time</button>
+        <button class="btn btn-primary" id="reEncodeBtn"><i class="fi fi-rr-refresh"></i> Re-encode in Real-Time</button>
       </div>
 
       <div style="margin-top: 1.8rem;">
         <div class="control-label">Preset Test Samples</div>
         <div class="sample-buttons">
-          <button class="sample-btn active" id="btnSample1">🌄 Photo Sunset</button>
-          <button class="sample-btn" id="btnSample2">🎨 UI Card / Icon</button>
+          <button class="sample-btn active" id="btnSample1"><i class="fi fi-rr-mountains"></i> Photo Sunset</button>
+          <button class="sample-btn" id="btnSample2"><i class="fi fi-rr-palette"></i> UI Card / Icon</button>
         </div>
       </div>
 
       <div style="margin-top: 1.2rem;">
         <div class="control-label">Upload Custom Image</div>
         <input type="file" id="fileInput" accept="image/*" style="display: none;">
-        <button class="btn" onclick="document.getElementById('fileInput').click()">📁 Select Image from Disk</button>
+        <button class="btn" onclick="document.getElementById('fileInput').click()"><i class="fi fi-rr-folder-upload"></i> Select Image from Disk</button>
       </div>
     </div>
 
     <!-- Right Area: Interactive Comparison & Metrics -->
     <div>
       <div class="panel">
-        <h2>🖼️ Interactive Split View & Visual Fidelity</h2>
+        <h2><i class="fi fi-rr-picture" style="color: var(--cyan);"></i> Interactive Split View & Visual Fidelity</h2>
 
         <!-- Action / Download Bar -->
         <div class="download-bar">
           <button class="btn btn-download-wpg" id="btnDownloadWpg">
-            <span>⬇️ Download .wpg (Original WPG File)</span>
+            <span style="display: inline-flex; align-items: center; gap: 0.45rem;"><i class="fi fi-rr-download"></i> Download .wpg (Original WPG File)</span>
             <span class="size-pill" id="badgeWpgSize">3.0 KB</span>
           </button>
           <button class="btn btn-download-avif" id="btnDownloadAvif">
-            <span>⬇️ Download .avif (Standard AVIF File)</span>
+            <span style="display: inline-flex; align-items: center; gap: 0.45rem;"><i class="fi fi-rr-download"></i> Download .avif (Standard AVIF File)</span>
             <span class="size-pill" id="badgeAvifSize">-</span>
           </button>
           <button class="btn btn-secondary" id="btnDownloadPng">
-            <span>🖼️ Save Reconstructed PNG</span>
+            <span style="display: inline-flex; align-items: center; gap: 0.45rem;"><i class="fi fi-rr-disk"></i> Save Reconstructed PNG</span>
           </button>
           <button class="btn btn-secondary" id="btnDownloadPreview">
-            <span>⚡ 16B Micro-Preview (.bin)</span>
+            <span style="display: inline-flex; align-items: center; gap: 0.45rem;"><i class="fi fi-rr-microchip"></i> 16B Micro-Preview (.bin)</span>
           </button>
         </div>
 
@@ -1551,7 +1595,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
         <div style="margin-top: 1.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 14px; padding: 1.4rem;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
             <h3 style="font-size: 1.1rem; color: #a5b4fc; display: flex; align-items: center; gap: 0.5rem;">
-              <span>🔌 Web Component Integration (&lt;wpg-img&gt;)</span>
+              <span style="display: inline-flex; align-items: center; gap: 0.5rem;"><i class="fi fi-rr-brackets-curly"></i> Web Component Integration (&lt;wpg-img&gt;)</span>
             </h3>
             <span style="font-size: 0.75rem; background: rgba(99,102,241,0.2); color: #818cf8; padding: 0.25rem 0.6rem; border-radius: 20px;">Zero-CLS &bull; 16B Instant Micro-Preview</span>
           </div>
@@ -1823,7 +1867,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       const wpgRow = document.createElement('tr');
       wpgRow.className = 'wpg-row';
       wpgRow.innerHTML = `
-        <td><strong>✨ ${data.wpg.format}</strong></td>
+        <td><strong style="display: inline-flex; align-items: center; gap: 0.4rem;"><i class="fi fi-rr-sparkles" style="color: var(--cyan);"></i> ${data.wpg.format}</strong></td>
         <td>${(data.wpg.size_bytes / 1024).toFixed(1)} KB (${data.wpg.size_bytes.toLocaleString()} B)</td>
         <td>${data.wpg.bpp.toFixed(3)}</td>
         <td>${data.wpg.psnr_db.toFixed(1)} dB</td>
@@ -1851,7 +1895,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
           <td>
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
               <span>${comp.format}</span>
-              ${isAvif && latestAvifBase64 ? '<button class="btn" style="width: auto; padding: 0.2rem 0.55rem; font-size: 0.75rem; background: rgba(2,132,199,0.25); border-color: #0284c7; color: #38bdf8;" onclick="event.stopPropagation(); downloadBase64(latestAvifBase64, \'compressed_image.avif\', \'image/avif\');">⬇️ .avif</button>' : ''}
+              ${isAvif && latestAvifBase64 ? '<button class="btn" style="width: auto; padding: 0.2rem 0.55rem; font-size: 0.75rem; background: rgba(2,132,199,0.25); border-color: #0284c7; color: #38bdf8; display: inline-flex; align-items: center; gap: 0.35rem;" onclick="event.stopPropagation(); downloadBase64(latestAvifBase64, \'compressed_image.avif\', \'image/avif\');"><i class="fi fi-rr-download"></i> .avif</button>' : ''}
             </div>
           </td>
           <td>${(comp.size_bytes / 1024).toFixed(1)} KB (${comp.size_bytes.toLocaleString()} B)</td>
