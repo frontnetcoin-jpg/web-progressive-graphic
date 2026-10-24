@@ -46,6 +46,7 @@ pub struct EncodeResponse {
     pub preview_data_url: Option<String>,
     pub comparisons: Vec<CompareFormatInfo>,
     pub wpg_base64: String,        // Raw .wpg binary data for direct download
+    pub avif_base64: Option<String>, // Raw .avif binary data for direct download & tangible comparison
     pub preview_base64: Option<String>, // Raw 16-byte micro-preview binary
 }
 
@@ -54,7 +55,8 @@ pub fn run_server(port: u16) -> std::io::Result<()> {
     let listener = TcpListener::bind(&addr)?;
     println!("\n========================================================");
     println!("  🚀 WPG Showcase Server running at: http://{}", addr);
-    println!("  Explore live interactive compression, zoom & metrics");
+    println!("  Interactive compression, 1:1 zoom, side-by-side WPG vs AVIF");
+    println!("  Endpoints: / (GUI), /api/encode, /api/sample.wpg, /api/sample.avif");
     println!("========================================================\n");
 
     for stream in listener.incoming() {
@@ -137,6 +139,26 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
                 send_response_status(stream, 500, "Internal Server Error", "application/json", err_json.as_bytes())?;
             }
         }
+    } else if method == "GET" && (*path == "/api/sample.avif" || *path == "/api/sample1.avif") {
+        match generate_sample_avif(1) {
+            Ok(avif_bytes) => {
+                send_response(stream, "image/avif", &avif_bytes)?;
+            }
+            Err(e) => {
+                let err_json = format!(r#"{{"error": "{}"}}"#, e);
+                send_response_status(stream, 500, "Internal Server Error", "application/json", err_json.as_bytes())?;
+            }
+        }
+    } else if method == "GET" && *path == "/api/sample2.avif" {
+        match generate_sample_avif(2) {
+            Ok(avif_bytes) => {
+                send_response(stream, "image/avif", &avif_bytes)?;
+            }
+            Err(e) => {
+                let err_json = format!(r#"{{"error": "{}"}}"#, e);
+                send_response_status(stream, 500, "Internal Server Error", "application/json", err_json.as_bytes())?;
+            }
+        }
     } else if method == "GET" && *path == "/api/sample" {
         let sample = generate_demo_sample(1);
         send_response(stream, "image/png", &sample)?;
@@ -200,6 +222,24 @@ fn generate_sample_wpg() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     };
     let wpg_bytes = WpgEncoder::encode(rgba.as_raw(), rgba.width(), rgba.height(), &opt)?;
     Ok(wpg_bytes)
+}
+
+fn generate_sample_avif(kind: usize) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let sample = generate_demo_sample(kind);
+    let img = image::load_from_memory(&sample)?;
+    let rgba = img.to_rgba8();
+    let width = rgba.width();
+    let height = rgba.height();
+    let slice: &[ravif::RGBA8] = unsafe {
+        std::slice::from_raw_parts(rgba.as_raw().as_ptr() as *const ravif::RGBA8, (width * height) as usize)
+    };
+    let img_ref = ravif::Img::new(slice, width as usize, height as usize);
+    let enc = ravif::Encoder::new()
+        .with_quality(75.0)
+        .with_speed(6)
+        .with_bit_depth(ravif::BitDepth::Eight);
+    let encoded = enc.encode_rgba(img_ref)?;
+    Ok(encoded.avif_file)
 }
 
 fn handle_encode_api(body: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
@@ -352,7 +392,7 @@ fn handle_encode_api(body: &[u8]) -> Result<String, Box<dyn std::error::Error>> 
         }
     }
 
-    let (avif_psnr, avif_ssim, avif_data_url) = if !avif_bytes.is_empty() {
+    let (avif_psnr, avif_ssim, mut avif_data_url) = if !avif_bytes.is_empty() {
         if let Ok(dec_rgba) = crate::decode_avif_to_rgba(&avif_bytes, width as usize, height as usize, avif_alpha_size, avif_color_size) {
             let p = compute_psnr(rgba.as_raw(), &dec_rgba);
             let s = compute_ssim(rgba.as_raw(), &dec_rgba, width as usize, height as usize);
@@ -370,6 +410,16 @@ fn handle_encode_api(body: &[u8]) -> Result<String, Box<dyn std::error::Error>> 
         }
     } else {
         (0.0, 0.0, String::new())
+    };
+
+    if avif_data_url.is_empty() && !avif_bytes.is_empty() {
+        avif_data_url = format!("data:image/avif;base64,{}", base64_encode(&avif_bytes));
+    }
+
+    let avif_b64 = if !avif_bytes.is_empty() {
+        Some(base64_encode(&avif_bytes))
+    } else {
+        None
     };
 
     let mut comparisons = Vec::new();
@@ -394,7 +444,7 @@ fn handle_encode_api(body: &[u8]) -> Result<String, Box<dyn std::error::Error>> 
             bpp: (avif_bytes.len() as f64 * 8.0) / (width * height) as f64,
             psnr_db: avif_psnr,
             ssim: avif_ssim,
-            data_url: if avif_data_url.is_empty() { wpg_data_url.clone() } else { avif_data_url },
+            data_url: avif_data_url,
             encode_time_ms: avif_time,
             savings_vs_png_pct: (1.0 - avif_bytes.len() as f64 / png_size as f64) * 100.0,
         });
@@ -463,6 +513,7 @@ fn handle_encode_api(body: &[u8]) -> Result<String, Box<dyn std::error::Error>> 
         preview_data_url,
         comparisons,
         wpg_base64: base64_encode(&wpg_bytes),
+        avif_base64: avif_b64,
         preview_base64,
     };
 
@@ -1073,6 +1124,43 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       box-shadow: 0 6px 25px rgba(16, 185, 129, 0.6);
       transform: translateY(-2px);
     }
+    .btn-download-avif {
+      flex: 1.5;
+      min-width: 240px;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      font-weight: 700;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      box-shadow: 0 4px 20px rgba(2, 132, 199, 0.4);
+    }
+    .btn-download-avif:hover {
+      box-shadow: 0 6px 25px rgba(2, 132, 199, 0.6);
+      transform: translateY(-2px);
+    }
+    .ref-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #cbd5e1;
+      padding: 0.35rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .ref-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+    .ref-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
     .btn-secondary {
       flex: 1;
       min-width: 170px;
@@ -1373,12 +1461,32 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             <span>⬇️ Download .wpg (Original WPG File)</span>
             <span class="size-pill" id="badgeWpgSize">3.0 KB</span>
           </button>
+          <button class="btn btn-download-avif" id="btnDownloadAvif">
+            <span>⬇️ Download .avif (Standard AVIF File)</span>
+            <span class="size-pill" id="badgeAvifSize">-</span>
+          </button>
           <button class="btn btn-secondary" id="btnDownloadPng">
             <span>🖼️ Save Reconstructed PNG</span>
           </button>
           <button class="btn btn-secondary" id="btnDownloadPreview">
             <span>⚡ 16B Micro-Preview (.bin)</span>
           </button>
+        </div>
+
+        <!-- Split View Reference Selector -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.6rem;">
+          <div style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; color: #cbd5e1;">
+            <span style="font-weight: 600;">Compare WPG against:</span>
+            <div id="refSelector" style="display: inline-flex; gap: 0.4rem;">
+              <button class="ref-btn active" data-ref="avif">AVIF (Standard)</button>
+              <button class="ref-btn" data-ref="orig">Original (PNG)</button>
+              <button class="ref-btn" data-ref="webp">WebP</button>
+              <button class="ref-btn" data-ref="jpeg">JPEG</button>
+            </div>
+          </div>
+          <div style="font-size: 0.8rem; color: #94a3b8;">
+            Drag center slider or hover for 1:1 magnifier
+          </div>
         </div>
 
         <div class="compare-container" id="compareBox">
@@ -1392,7 +1500,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             <svg viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5V7zm8 0v10l5-5-5-5z"/></svg>
           </div>
           <div class="label-badge label-left">WPG Compressed</div>
-          <div class="label-badge label-right" id="rightLabel">Original Image</div>
+          <div class="label-badge label-right" id="rightLabel">AVIF Standard</div>
           <div class="magnifier-lens" id="magLens"></div>
         </div>
 
@@ -1463,8 +1571,11 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
     let currentImageBase64 = '';
     let currentRotation = 0;
     let latestWpgBase64 = '';
+    let latestAvifBase64 = '';
     let latestPreviewBase64 = '';
     let latestPngUrl = '';
+    let currentRefMode = 'avif';
+    let availableRefs = {};
 
     const qSlider = document.getElementById('qSlider');
     const qVal = document.getElementById('qVal');
@@ -1547,6 +1658,11 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       downloadBase64(latestWpgBase64, 'compressed_image.wpg', 'application/octet-stream');
     });
 
+    document.getElementById('btnDownloadAvif').addEventListener('click', () => {
+      if (!latestAvifBase64) return;
+      downloadBase64(latestAvifBase64, 'compressed_image.avif', 'image/avif');
+    });
+
     document.getElementById('btnDownloadPng').addEventListener('click', () => {
       if (!latestPngUrl) return;
       const a = document.createElement('a');
@@ -1560,6 +1676,29 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
     document.getElementById('btnDownloadPreview').addEventListener('click', () => {
       if (!latestPreviewBase64) return;
       downloadBase64(latestPreviewBase64, 'micro_preview_16b.bin', 'application/octet-stream');
+    });
+
+    // Reference switching logic
+    function updateRightImage() {
+      if (!availableRefs[currentRefMode]) {
+        currentRefMode = availableRefs['avif'] ? 'avif' : 'orig';
+      }
+      const ref = availableRefs[currentRefMode];
+      if (ref) {
+        imgRight.src = ref.url;
+        document.getElementById('rightLabel').innerText = ref.label;
+      }
+      document.querySelectorAll('.ref-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-ref') === currentRefMode);
+      });
+      syncImageSizes();
+    }
+
+    document.querySelectorAll('.ref-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentRefMode = btn.getAttribute('data-ref');
+        updateRightImage();
+      });
     });
 
     // Load sample images
@@ -1602,7 +1741,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
 
     async function triggerEncode() {
       if (!currentImageBase64) return;
-      reEncodeBtn.innerText = '⏳ Encoding WPG...';
+      reEncodeBtn.innerText = '⏳ Encoding WPG & AVIF in Real-Time...';
       reEncodeBtn.disabled = true;
 
       try {
@@ -1638,17 +1777,36 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
 
     function renderResults(data) {
       latestWpgBase64 = data.wpg_base64;
+      latestAvifBase64 = data.avif_base64 || '';
       latestPreviewBase64 = data.preview_base64 || '';
       latestPngUrl = data.wpg.data_url;
 
-      // Ensure both images use upright server-normalized orientation
-      imgLeft.src = data.wpg.data_url;
-      imgRight.src = data.original_data_url;
-      syncImageSizes();
+      // Extract format comparisons
+      const avifComp = data.comparisons.find(c => c.format.toLowerCase().includes('avif'));
+      const webpComp = data.comparisons.find(c => c.format.toLowerCase().includes('webp'));
+      const jpegComp = data.comparisons.find(c => c.format.toLowerCase().includes('jpeg'));
 
-      // Update download badge
+      availableRefs = {
+        orig: { url: data.original_data_url, label: 'Original Image (PNG)' },
+        avif: avifComp ? { url: avifComp.data_url, label: avifComp.format } : null,
+        webp: webpComp ? { url: webpComp.data_url, label: webpComp.format } : null,
+        jpeg: jpegComp ? { url: jpegComp.data_url, label: jpegComp.format } : null
+      };
+
+      imgLeft.src = data.wpg.data_url;
+      updateRightImage();
+
+      // Update download badges
       const sizeKb = (data.wpg.size_bytes / 1024).toFixed(1) + ' KB';
       document.getElementById('badgeWpgSize').innerText = sizeKb;
+
+      if (avifComp && latestAvifBase64) {
+        const avifKb = (avifComp.size_bytes / 1024).toFixed(1) + ' KB';
+        document.getElementById('badgeAvifSize').innerText = avifKb;
+        document.getElementById('btnDownloadAvif').style.display = 'inline-flex';
+      } else {
+        document.getElementById('btnDownloadAvif').style.display = 'none';
+      }
 
       // Update metrics cards
       document.getElementById('metricSize').innerText = sizeKb;
@@ -1677,8 +1835,25 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
       // Other formats
       for (const comp of data.comparisons) {
         const row = document.createElement('tr');
+        const isAvif = comp.format.toLowerCase().includes('avif');
+        const isWebp = comp.format.toLowerCase().includes('webp');
+        const isJpeg = comp.format.toLowerCase().includes('jpeg');
+        const refKey = isAvif ? 'avif' : (isWebp ? 'webp' : (isJpeg ? 'jpeg' : 'orig'));
+
+        row.style.cursor = 'pointer';
+        row.title = 'Click to compare side-by-side in split view';
+        row.addEventListener('click', () => {
+          currentRefMode = refKey;
+          updateRightImage();
+        });
+
         row.innerHTML = `
-          <td>${comp.format}</td>
+          <td>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+              <span>${comp.format}</span>
+              ${isAvif && latestAvifBase64 ? '<button class="btn" style="width: auto; padding: 0.2rem 0.55rem; font-size: 0.75rem; background: rgba(2,132,199,0.25); border-color: #0284c7; color: #38bdf8;" onclick="event.stopPropagation(); downloadBase64(latestAvifBase64, \'compressed_image.avif\', \'image/avif\');">⬇️ .avif</button>' : ''}
+            </div>
+          </td>
           <td>${(comp.size_bytes / 1024).toFixed(1)} KB (${comp.size_bytes.toLocaleString()} B)</td>
           <td>${comp.bpp.toFixed(3)}</td>
           <td>${comp.psnr_db.toFixed(1)} dB</td>
