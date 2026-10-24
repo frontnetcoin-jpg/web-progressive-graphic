@@ -118,6 +118,19 @@ enum Commands {
         #[arg(short, long)]
         recursive: bool,
     },
+
+    /// Open a .wpg file (or launch blank canvas) in the native Windows Desktop Viewer
+    View {
+        /// Optional input .wpg file path
+        #[arg(value_name = "INPUT")]
+        input: Option<PathBuf>,
+    },
+
+    /// Register .wpg file format in Windows Explorer (double-click association, icons, context menus)
+    Register,
+
+    /// Unregister .wpg file format from Windows Explorer
+    Unregister,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -470,8 +483,113 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("+--------------------------------+------------+------------+----------+-----------+");
             println!("\n✨ Batch conversion complete! Saved {} of bandwidth/storage.\n", format_bytes(total_saved));
         }
+
+        Commands::View { input } => {
+            let exe_path = std::env::current_exe()?;
+            let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new(""));
+            let viewer_path = exe_dir.join("wpg-view.exe");
+            let mut cmd = std::process::Command::new(if viewer_path.exists() {
+                viewer_path
+            } else {
+                PathBuf::from("wpg-view.exe")
+            });
+            if let Some(p) = input {
+                cmd.arg(p);
+            }
+            cmd.spawn()?;
+        }
+
+        Commands::Register => {
+            register_windows_shell()?;
+        }
+
+        Commands::Unregister => {
+            unregister_windows_shell()?;
+        }
     }
 
+    Ok(())
+}
+
+fn register_windows_shell() -> Result<(), Box<dyn std::error::Error>> {
+    let exe_path = std::env::current_exe()?;
+    let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new(""));
+    let viewer_path = exe_dir.join("wpg-view.exe");
+    let viewer_str = if viewer_path.exists() {
+        viewer_path.to_string_lossy().to_string()
+    } else {
+        exe_path.to_string_lossy().to_string()
+    };
+    let wpg_str = exe_path.to_string_lossy().to_string();
+
+    println!("\n========================================================");
+    println!("  🪟 Registering WPG Image Format in Windows Explorer");
+    println!("========================================================");
+
+    let reg_script = format!(
+        r#"
+$hkcu = "HKCU:\Software\Classes"
+New-Item -Path "$hkcu\.wpg" -Force | Out-Null
+Set-ItemProperty -Path "$hkcu\.wpg" -Name "(Default)" -Value "WPGImage"
+Set-ItemProperty -Path "$hkcu\.wpg" -Name "Content Type" -Value "image/wpg"
+Set-ItemProperty -Path "$hkcu\.wpg" -Name "PerceivedType" -Value "image"
+
+New-Item -Path "$hkcu\WPGImage" -Force | Out-Null
+Set-ItemProperty -Path "$hkcu\WPGImage" -Name "(Default)" -Value "WPG (Web Progressive Graphic) Image"
+
+New-Item -Path "$hkcu\WPGImage\DefaultIcon" -Force | Out-Null
+Set-ItemProperty -Path "$hkcu\WPGImage\DefaultIcon" -Name "(Default)" -Value '"{viewer}",0'
+
+New-Item -Path "$hkcu\WPGImage\shell\open\command" -Force | Out-Null
+Set-ItemProperty -Path "$hkcu\WPGImage\shell\open" -Name "(Default)" -Value "Open with WPG Viewer"
+Set-ItemProperty -Path "$hkcu\WPGImage\shell\open\command" -Name "(Default)" -Value '"{viewer}" "%1"'
+
+New-Item -Path "$hkcu\WPGImage\shell\convert_png\command" -Force | Out-Null
+Set-ItemProperty -Path "$hkcu\WPGImage\shell\convert_png" -Name "(Default)" -Value "Convert to PNG"
+Set-ItemProperty -Path "$hkcu\WPGImage\shell\convert_png\command" -Name "(Default)" -Value '"{wpg}" decode "%1" -o "%1.png"'
+
+New-Item -Path "$hkcu\WPGImage\shell\info\command" -Force | Out-Null
+Set-ItemProperty -Path "$hkcu\WPGImage\shell\info" -Name "(Default)" -Value "WPG Image Analysis"
+Set-ItemProperty -Path "$hkcu\WPGImage\shell\info\command" -Name "(Default)" -Value 'cmd /k ""{wpg}" info "%1""'
+
+# Refresh Explorer associations
+$code = '[DllImport("shell32.dll")]public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);'
+$type = Add-Type -MemberDefinition $code -Name ShellUtil -Namespace Win32 -PassThru
+$type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
+"#,
+        viewer = viewer_str,
+        wpg = wpg_str
+    );
+
+    let status = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-Command", &reg_script])
+        .status()?;
+
+    if status.success() {
+        println!("✔ Successfully registered .wpg format in Windows Explorer (HKCU)!");
+        println!("  • Default viewer: {}", viewer_str);
+        println!("  • Double-click any .wpg file to open instantly in WPG Viewer");
+        println!("  • Right-click menu options added: 'Open with WPG Viewer', 'Convert to PNG', 'WPG Image Analysis'\n");
+    } else {
+        eprintln!("⚠️ Failed to write registry keys.");
+    }
+
+    Ok(())
+}
+
+fn unregister_windows_shell() -> Result<(), Box<dyn std::error::Error>> {
+    println!("\nUnregistering WPG format from Windows Explorer...");
+    let unreg_script = r#"
+Remove-Item -Path "HKCU:\Software\Classes\.wpg" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "HKCU:\Software\Classes\WPGImage" -Recurse -Force -ErrorAction SilentlyContinue
+$code = '[DllImport("shell32.dll")]public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);'
+$type = Add-Type -MemberDefinition $code -Name ShellUtil -Namespace Win32 -PassThru
+$type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
+"#;
+    let _ = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-Command", unreg_script])
+        .status()?;
+    println!("✔ Unregistered .wpg file associations successfully.\n");
     Ok(())
 }
 
