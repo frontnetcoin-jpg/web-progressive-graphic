@@ -108,10 +108,11 @@ export async function decodeWpg(inputBuffer, options = {}) {
 }
 
 export class WpgImageElement extends HTMLElement {
-    static get observedAttributes() { return ['src', 'alt', 'width', 'height', 'wasm-url']; }
+    static get observedAttributes() { return ['src', 'alt', 'width', 'height', 'loading', 'wasm-url']; }
 
     constructor() {
         super();
+        this._loadedUrl = null;
         this.attachShadow({ mode: 'open' });
         this.shadowRoot.innerHTML = `
             <style>
@@ -144,8 +145,19 @@ export class WpgImageElement extends HTMLElement {
     }
 
     connectedCallback() {
-        if (this.getAttribute('src')) {
-            this.loadWpg(this.getAttribute('src'));
+        const src = this.getAttribute('src');
+        if (!src) return;
+
+        if (this.getAttribute('loading') === 'lazy' && 'IntersectionObserver' in window) {
+            const observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting) {
+                    observer.disconnect();
+                    this.loadWpg(src);
+                }
+            }, { rootMargin: '200px 0px' });
+            observer.observe(this);
+        } else {
+            this.loadWpg(src);
         }
     }
 
@@ -156,6 +168,9 @@ export class WpgImageElement extends HTMLElement {
     }
 
     async loadWpg(url) {
+        if (!url || this._loadedUrl === url) return;
+        this._loadedUrl = url;
+
         const cvs = this.shadowRoot.getElementById('cvs');
         const ctx = cvs.getContext('2d');
         cvs.className = 'preview-mode';

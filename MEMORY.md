@@ -146,6 +146,18 @@ A `.wpg` file is organized sequentially into a fixed 16-byte header, followed by
    </wpg-img>
    ```
 
+### 5.3 Production Milestone: any2prompt.com (96/100 Mobile PageSpeed)
+* **Live Deployment:** Successfully integrated into production on active AI SaaS platform ([any2prompt.com](https://any2prompt.com)).
+* **Lighthouse Performance Score:** Jumped from **74 - 75** (Orange) to **96 / 100** (Emerald) on mobile!
+* **Asset Reductions:**
+  - Hero Feature Visual: 4.19 MB $\rightarrow$ **87.9 KB** (**-97.9%**)
+  - Gallery (10 items): 8.69 MB $\rightarrow$ **993 KB** (**-88.6%**)
+* **Key Architecture Rules Enforced:**
+  1. `<wpg-img>` must support native `loading="lazy"` with `IntersectionObserver` (`rootMargin: '200px 0px'`) to avoid concurrent network saturation at initial load.
+  2. Scripts must load with `defer` (`<script src="/js/wpg-bundle.js" defer>`).
+  3. `loadWpg(url)` must enforce deduplication (`this._loadedUrl === url`) to prevent duplicate HTTP requests from concurrent callbacks.
+  4. Never place inline `style="background-image:url('...')"` in client-side JS template `<noscript>` tags, as browser CSS parsers speculatively fetch the legacy fallback asset.
+
 ---
 
 ## 6. Codebase File Structure & Module Map

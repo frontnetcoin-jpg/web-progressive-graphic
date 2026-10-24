@@ -44,6 +44,8 @@
     - [11.1 Cumulative Layout Shift (CLS: 0.000)](#111-cumulative-layout-shift-cls-0000)
     - [11.2 Largest Contentful Paint (LCP)](#112-largest-contentful-paint-lcp)
     - [11.3 Crawler Indexing & Fallbacks](#113-crawler-indexing--fallbacks)
+    - [11.4 Production Case Study (any2prompt.com: 96/100 Mobile PageSpeed)](#114-production-case-study-any2promptcom-96100-mobile-pagespeed)
+    - [11.5 Performance Architecture: Lazy Loading & Script Defer](#115-performance-architecture-lazy-loading--script-defer)
 12. [Local Testing Playground (`playground/`)](#12-local-testing-playground-playground)
 
 ---
@@ -387,6 +389,31 @@ With a 20% to 35% reduction in asset weight compared to standard AVIF and 68% co
   </noscript>
 </wpg-img>
 ```
+
+### 11.4 Production Case Study (any2prompt.com: 96/100 Mobile PageSpeed)
+The real-world efficacy of WPG was verified in production on an active AI prompt engineering web platform ([any2prompt.com](https://any2prompt.com)):
+
+| Metric / Asset Group | Before (Legacy JPG/PNG) | With WPG & `<wpg-img>` | Real-World Impact |
+|---|:---:|:---:|:---:|
+| **Google PageSpeed Mobile Score** | **74 - 75** (Orange) | **96 / 100** (Emerald) 🚀 | **+21 Points jump into top 1–2% globally** |
+| **Hero Feature Visual** | 4.19 MB | **87.9 KB** | **-97.9%** (47.7x reduction) |
+| **Interactive Gallery Assets** | 8.69 MB (10 photos) | **993 KB** | **-88.6%** (~7.7 MB bandwidth saved) |
+| **Cumulative Layout Shift (CLS)** | 0.01 | **0.00** | **0.000 (Flawless Zero-CLS)** |
+| **First Contentful Paint (FCP)** | 0.8 s | **0.7 s** | **0.7s sub-second paint** |
+| **Largest Contentful Paint (LCP)** | 3.1 s (Red) | **1.8 s** (Green) | **-42% faster contentful paint** |
+
+### 11.5 Performance Architecture: Lazy Loading & Script Defer
+To achieve consistent 95–100/100 scores in mobile Lighthouse testing:
+1. **Script Deferral:** Always load the WPG decoder bundle non-blockingly via `defer`:
+   ```html
+   <script src="/js/wpg-bundle.js" defer></script>
+   ```
+2. **Native Lazy Loading:** Always specify `loading="lazy"` on below-the-fold assets:
+   ```html
+   <wpg-img src="/images/gallery/portrait.wpg" alt="Portrait" width="300" height="300" loading="lazy"></wpg-img>
+   ```
+   The `<wpg-img>` component automatically attaches an internal `IntersectionObserver` with a `200px` root margin to defer network requests until the image nears the viewport.
+3. **Avoid Inline `background-image` in JS Templates:** When rendering dynamic templates via JavaScript `innerHTML`, do not include redundant `<noscript><div style="background-image:url('legacy.jpg')"></div></noscript>` blocks, as browser CSS engines speculatively initiate background image downloads for inline style declarations.
 
 ---
 

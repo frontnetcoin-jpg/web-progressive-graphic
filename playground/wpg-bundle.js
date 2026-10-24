@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Standalone WPG Web Component & Decoder for Local Playground
  * Works 100% offline both on http:// and file:/// protocols!
  */
@@ -18,8 +18,18 @@
 
     async function getWpgWasm(wasmUrl) {
         if (wpgWasmModule) return wpgWasmModule;
-        // Try network fetch if not on file://
-        if (location.protocol !== 'file:' && wasmUrl) {
+        // Prefer embedded base64 wasm (instant, zero network latency, zero 404s)
+        if (EMBEDDED_WASM_B64) {
+            try {
+                const bytes = base64ToUint8(EMBEDDED_WASM_B64);
+                const { instance } = await WebAssembly.instantiate(bytes, {});
+                wpgWasmModule = instance;
+                return wpgWasmModule;
+            } catch (e) {
+                console.warn('Embedded WPG WebAssembly failed:', e);
+            }
+        }
+        if (wasmUrl) {
             try {
                 const resp = await fetch(wasmUrl);
                 if (resp.ok) {
@@ -29,26 +39,18 @@
                     return wpgWasmModule;
                 }
             } catch (e) {
-                console.warn('Wasm fetch failed, using embedded fallback:', e);
+                console.error('Failed to fetch WPG wasm:', e);
             }
         }
-        // Fallback to embedded base64 wasm (works 100% on file://)
-        try {
-            const bytes = base64ToUint8(EMBEDDED_WASM_B64);
-            const { instance } = await WebAssembly.instantiate(bytes, {});
-            wpgWasmModule = instance;
-            return wpgWasmModule;
-        } catch (e) {
-            console.error('Failed to instantiate embedded WPG WebAssembly:', e);
-            return null;
-        }
+        return null;
     }
 
     class WpgImageElement extends HTMLElement {
-        static get observedAttributes() { return ['src', 'alt', 'width', 'height', 'wasm-url']; }
+        static get observedAttributes() { return ['src', 'alt', 'width', 'height', 'loading', 'wasm-url']; }
 
         constructor() {
             super();
+            this._loadedUrl = null;
             this.attachShadow({ mode: 'open' });
             this.shadowRoot.innerHTML = `
                 <style>
@@ -57,7 +59,7 @@
                         position: relative;
                         overflow: hidden;
                         background: #0f172a;
-                        border-radius: 8px;
+                        border-radius: inherit;
                         line-height: 0;
                         width: 100%;
                         height: 100%;
@@ -66,7 +68,7 @@
                         display: block;
                         width: 100%;
                         height: 100%;
-                        object-fit: contain;
+                        object-fit: var(--wpg-fit, cover);
                         transition: filter 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
                     }
                     .preview-mode {
@@ -83,8 +85,19 @@
         }
 
         connectedCallback() {
-            if (this.getAttribute('src')) {
-                this.loadWpg(this.getAttribute('src'));
+            const src = this.getAttribute('src');
+            if (!src) return;
+
+            if (this.getAttribute('loading') === 'lazy' && 'IntersectionObserver' in window) {
+                const observer = new IntersectionObserver((entries) => {
+                    if (entries[0].isIntersecting) {
+                        observer.disconnect();
+                        this.loadWpg(src);
+                    }
+                }, { rootMargin: '200px 0px' });
+                observer.observe(this);
+            } else {
+                this.loadWpg(src);
             }
         }
 
@@ -95,6 +108,9 @@
         }
 
         async loadWpg(url) {
+            if (!url || this._loadedUrl === url) return;
+            this._loadedUrl = url;
+
             try {
                 const resp = await fetch(url);
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);

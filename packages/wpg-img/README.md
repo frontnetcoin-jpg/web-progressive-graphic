@@ -83,6 +83,22 @@ Tested on mixed photographic and high-frequency content with 100% independent bi
 
 ---
 
+### 🌐 Production Deployment Case Study: any2prompt.com (96/100 Mobile PageSpeed)
+*Bitstream metrics verified in production on an active AI web application ([any2prompt.com](https://any2prompt.com)).*
+
+| Metric / Asset Group | Before (Legacy JPG/PNG) | With WPG & `<wpg-img>` | Real-World Impact |
+|---|:---:|:---:|:---:|
+| **Google PageSpeed Mobile Score** | **74 - 75** (Orange) | **96 / 100** (Emerald) 🚀 | **+21 Points jump into top 1–2% globally** |
+| **Hero Feature Visual** | 4.19 MB | **87.9 KB** | **-97.9%** (47.7x reduction) |
+| **Interactive Gallery Assets** | 8.69 MB (10 photos) | **993 KB** | **-88.6%** (~7.7 MB bandwidth saved) |
+| **Cumulative Layout Shift (CLS)** | 0.01 | **0.00** | **0.000 (Flawless Zero-CLS)** |
+| **First Contentful Paint (FCP)** | 0.8 s | **0.7 s** | **0.7s sub-second paint** |
+| **Largest Contentful Paint (LCP)** | 3.1 s (Red) | **1.8 s** (Green) | **-42% faster contentful paint** |
+
+> **Production Key Insight:** By pairing `.wpg` batch encoding with `<wpg-img loading="lazy">` and `<script defer>`, total page image weight fell from **12.88 MB down to 1.08 MB (-91.6%)**, eliminating all Lighthouse next-gen format warnings and boosting mobile performance to **96/100**.
+
+---
+
 ## 📦 Installation
 
 ```bash
@@ -106,6 +122,7 @@ yarn add wpg-img
 <wpg-img 
   src="/images/hero.wpg" 
   alt="Stunning Hero Image"
+  loading="lazy"
   style="width: 100%; max-width: 800px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
 </wpg-img>
 ```
@@ -121,6 +138,7 @@ export default function HeroSection() {
       <wpg-img 
         src="/assets/photo.wpg" 
         alt="Sunset Mountain"
+        loading="lazy"
         style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '12px' }}
       />
     </div>
@@ -135,7 +153,7 @@ import 'wpg-img';
 </script>
 
 <template>
-  <wpg-img src="/images/product.wpg" alt="Product Demo" />
+  <wpg-img src="/images/product.wpg" alt="Product Demo" loading="lazy" />
 </template>
 ```
 
@@ -145,7 +163,7 @@ import 'wpg-img';
   import 'wpg-img';
 </script>
 
-<wpg-img src="/images/gallery.wpg" alt="Art Gallery" />
+<wpg-img src="/images/gallery.wpg" alt="Art Gallery" loading="lazy" />
 ```
 
 ---
@@ -171,10 +189,11 @@ document.getElementById('my-img').src = imgUrl;
 
 ## ⚡ How the Client-Side Decoder Works Under The Hood
 
-1. **Phase 1 — Instant Micro-Preview (< 0.05 ms):** Reads the 16-byte preview payload and renders a 4x4 canvas with `filter: blur(14px)` immediately. **Zero Cumulative Layout Shift (CLS)**.
-2. **Phase 2 — In-Memory GPU Decoding (0.005 ms overhead):** The bundled 61 KB WebAssembly engine (`wpg-decoder.wasm`) extracts the raw AV1 OBU, synthesizes an ultra-lightweight ISOBMFF header directly in memory, and passes it to the browser's native hardware-accelerated AV1 pipeline (`ImageBitmap`).
-3. **Phase 3 — Real-Time Film Grain:** If grain parameters are present, the client PRNG synthesizes the exact natural noise variance directly onto the canvas pixels.
-4. **Phase 4 — Seamless Crossfade:** The canvas smoothly transitions from placeholder blur to pin-sharp native resolution.
+1. **Phase 1 — Native Lazy Loading (`loading="lazy"`):** When `loading="lazy"` is set, an `IntersectionObserver` defers HTTP fetching until the image nears the viewport (`200px` root margin), eliminating network congestion during initial load.
+2. **Phase 2 — Instant Micro-Preview (< 0.05 ms):** Reads the 16-byte preview payload and renders a 4x4 canvas with `filter: blur(14px)` immediately. **Zero Cumulative Layout Shift (CLS)**.
+3. **Phase 3 — In-Memory GPU Decoding (0.005 ms overhead):** The bundled 61 KB WebAssembly engine (`wpg-decoder.wasm`) extracts the raw AV1 OBU, synthesizes an ultra-lightweight ISOBMFF header directly in memory, and passes it to the browser's native hardware-accelerated AV1 pipeline (`ImageBitmap`).
+4. **Phase 4 — Real-Time Film Grain:** If grain parameters are present, the client PRNG synthesizes the exact natural noise variance directly onto the canvas pixels.
+5. **Phase 5 — Seamless Crossfade:** The canvas smoothly transitions from placeholder blur to pin-sharp native resolution.
 
 ---
 

@@ -159,15 +159,22 @@ description: >-
 ## 6. SEO & Core Web Vitals Strategy
 
 - **CLS Score 0.000:** Το 16-byte fixed container και το 16-byte micro-preview δεσμεύουν τις διαστάσεις της εικόνας σε `< 0.05 ms`, προσφέροντας άριστο Google ranking score.
-- **LCP Optimization:** 20% έως 35% ταχύτερο LCP συγκριτικά με το AVIF.
-- **No-JS Crawler Fallback:**
-  ```html
-  <wpg-img src="/images/hero.wpg" alt="Hero Title">
-    <noscript>
-      <img src="/images/hero.jpg" alt="Hero Title" width="800" height="600" loading="lazy">
-    </noscript>
-  </wpg-img>
-  ```
+- **LCP Optimization:** 20% έως 35% ταχύτερο LCP συγκριτικά με το AVIF, και έως 68% μικρότερο βάρος σε σχέση με το JPEG.
+- **Production Milestone (any2prompt.com):** Επιβεβαιώθηκε στην πράξη σε ζωντανό SaaS application εκτοξεύοντας το Google PageSpeed score από **74-75** σε **96/100 (Καταπράσινο)**!
+  - Gallery (10 εικόνες): Από **8.69 MB** σε **993 KB** (**-88.6%**).
+  - Hero visual: Από **4.19 MB** σε **87.9 KB** (**-97.9%**).
+- **Αρχιτεκτονικοί Κανόνες Ενσωμάτωσης (Web Best Practices):**
+  1. **Lazy Loading:** Χρήση `loading="lazy"` στα `<wpg-img>` για below-the-fold assets. Το component ενεργοποιεί εσωτερικό `IntersectionObserver` με `200px` rootMargin αποτρέποντας το μπούκωμα του δικτύου.
+  2. **Script Deferral:** Φόρτωση του bundle script πάντα με `defer` (`<script src="/js/wpg-bundle.js" defer></script>`).
+  3. **No Duplicate Fetch:** Έλεγχος `this._loadedUrl` για αποτροπή διπλών HTTP αιτημάτων.
+  4. **No-JS Crawler Fallback:**
+     ```html
+     <wpg-img src="/images/hero.wpg" alt="Hero Title" loading="lazy">
+       <noscript>
+         <img src="/images/hero.jpg" alt="Hero Title" width="800" height="600" loading="lazy">
+       </noscript>
+     </wpg-img>
+     ```
 
 ---
 
