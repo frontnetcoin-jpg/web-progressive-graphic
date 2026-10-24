@@ -534,11 +534,13 @@ fn register_windows_shell() -> Result<(), Box<dyn std::error::Error>> {
 $hkcu = "HKCU:\Software\Classes"
 New-Item -Path "$hkcu\.wpg" -Force | Out-Null
 Set-ItemProperty -Path "$hkcu\.wpg" -Name "(Default)" -Value "WPGImage"
+Set-ItemProperty -Path "$hkcu\.wpg" -Name "ContentType" -Value "image/wpg"
 Set-ItemProperty -Path "$hkcu\.wpg" -Name "Content Type" -Value "image/wpg"
 Set-ItemProperty -Path "$hkcu\.wpg" -Name "PerceivedType" -Value "image"
 
 New-Item -Path "$hkcu\WPGImage" -Force | Out-Null
 Set-ItemProperty -Path "$hkcu\WPGImage" -Name "(Default)" -Value "WPG (Web Progressive Graphic) Image"
+Set-ItemProperty -Path "$hkcu\WPGImage" -Name "Treatment" -Value 0 -Type DWord
 
 New-Item -Path "$hkcu\WPGImage\DefaultIcon" -Force | Out-Null
 Set-ItemProperty -Path "$hkcu\WPGImage\DefaultIcon" -Name "(Default)" -Value '"{viewer}",0'
@@ -565,7 +567,7 @@ if (Test-Path "{thumb}") {{
 
     New-Item -Path "$hkcu\CLSID\$clsid\InProcServer32" -Force | Out-Null
     Set-ItemProperty -Path "$hkcu\CLSID\$clsid\InProcServer32" -Name "(Default)" -Value '{thumb}'
-    Set-ItemProperty -Path "$hkcu\CLSID\$clsid\InProcServer32" -Name "ThreadingModel" -Value "Apartment"
+    Set-ItemProperty -Path "$hkcu\CLSID\$clsid\InProcServer32" -Name "ThreadingModel" -Value "Both"
 
     New-Item -Path "$hkcu\.wpg\ShellEx\$thumbIid" -Force | Out-Null
     Set-ItemProperty -Path "$hkcu\.wpg\ShellEx\$thumbIid" -Name "(Default)" -Value "$clsid"

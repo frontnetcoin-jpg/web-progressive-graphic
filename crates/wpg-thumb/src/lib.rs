@@ -394,10 +394,12 @@ unsafe extern "system" fn stream_initialize(this: *mut c_void, pstream: *mut c_v
     loop {
         let mut read_bytes: u32 = 0;
         let hr = ((*stream_vtbl).Read)(pstream, chunk.as_mut_ptr() as *mut c_void, chunk.len() as u32, &mut read_bytes);
-        if hr != S_OK || read_bytes == 0 {
+        if read_bytes > 0 {
+            buffer.extend_from_slice(&chunk[..read_bytes as usize]);
+        }
+        if hr < 0 || read_bytes == 0 {
             break;
         }
-        buffer.extend_from_slice(&chunk[..read_bytes as usize]);
     }
 
     let self_ptr = (this as *mut u8).sub(std::mem::size_of::<usize>() * 2) as *mut WpgThumbnailProvider;
@@ -571,7 +573,7 @@ Set-ItemProperty -Path "$hkcu\CLSID\$clsid" -Name "DisableProcessIsolation" -Val
 
 New-Item -Path "$hkcu\CLSID\$clsid\InProcServer32" -Force | Out-Null
 Set-ItemProperty -Path "$hkcu\CLSID\$clsid\InProcServer32" -Name "(Default)" -Value '{dll}'
-Set-ItemProperty -Path "$hkcu\CLSID\$clsid\InProcServer32" -Name "ThreadingModel" -Value "Apartment"
+Set-ItemProperty -Path "$hkcu\CLSID\$clsid\InProcServer32" -Name "ThreadingModel" -Value "Both"
 
 # Associate with .wpg extension ShellEx
 New-Item -Path "$hkcu\.wpg\ShellEx\$thumbIid" -Force | Out-Null
