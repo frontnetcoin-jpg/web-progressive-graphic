@@ -172,7 +172,8 @@ wpg/
 ├── wpg-decoder.wasm         # Standalone 61 KB WebAssembly client decoder
 ├── wpg-element.js           # Native Web Component (<wpg-img>)
 ├── crates/
-│   └── wpg-wasm/            # Pure Wasm crate (wasm32-unknown-unknown, zero libc)
+│   ├── wpg-wasm/            # Pure Wasm crate (wasm32-unknown-unknown, zero libc)
+│   └── wpg-thumb/           # Native Windows Shell Thumbnail Provider COM DLL (IThumbnailProvider)
 ├── packages/
 │   └── wpg-img/             # NPM package distribution (TypeScript types, ESM, Wasm)
 │       ├── package.json     # wpg-img@1.0.0
@@ -204,9 +205,10 @@ wpg/
 │   ├── metrics.rs           # Pixel-exact PSNR & SSIM evaluation engine
 │   ├── server.rs            # Embedded Glassmorphic Showcase Server & REST API
 │   └── bin/
-│       ├── wpg.rs           # Unified CLI (encode, decode, batch, bench, info, serve)
+│       ├── wpg.rs           # Unified CLI (encode, decode, batch, bench, info, serve, view, register)
 │       ├── wpg_enc.rs       # Dedicated encoder binary
-│       └── wpg_dec.rs       # Dedicated decoder binary
+│       ├── wpg_dec.rs       # Dedicated decoder binary
+│       └── wpg_view.rs      # Native Win32 GDI Desktop Viewer (zoom, pan, HUD, PNG export)
 └── tests/
     └── roundtrip.rs         # Automated bit-exact roundtrip tests
 ```
@@ -239,3 +241,39 @@ wpg/
      cd packages\wpg-img
      npm publish --access public
      ```
+
+---
+
+## 8. Windows OS Shell Extension & Native Desktop Integration
+
+### 8.1 Windows Shell COM Architecture (`crates/wpg-thumb`)
+* **DLL Name:** `target/release/wpg_thumb.dll` (`cdylib`, Pure Rust).
+* **Target:** Windows Shell Thumbnail Provider.
+* **Interfaces Implemented:**
+  - `IThumbnailProvider` (`{E357FCCD-A995-4576-B01F-234630154E96}`)
+  - `IInitializeWithStream` (`{B824B49D-22AC-4161-AC8A-9916E8FA3F7F}`)
+  - `IInitializeWithFile` (`{B7D14566-0509-4CCE-A71F-0A554233BD98}`)
+  - `IClassFactory`
+* **CLSID:** `{6F0E9720-3051-4E78-8319-5A676BE466EC}`
+* **Threading Model:** `Both` (Essential for concurrent multithreaded decoding on Explorer thread pool).
+
+### 8.2 Critical Bug Discovery: `IStream::Read` and `S_FALSE` EOF Condition
+* **Symptom:** Windows Explorer called `IInitializeWithStream`, but `GetBitmap` returned `0x80004005 (E_FAIL)` with log `Error parsing OBU data`.
+* **Root Cause:** In COM `ISequentialStream::Read`, when reading the final chunk of a stream where `cbRead < cbRequested` (e.g., last 1,047 bytes of a 66,583-byte file), the method returns `S_FALSE` (`1`). The initial loop checked `if hr != S_OK`, causing it to break *before* appending the final bytes to the memory buffer. The resulting truncated buffer failed AV1 sequence header parsing.
+* **Resolution:** In `stream_initialize`, append `chunk[..read_bytes]` *whenever* `read_bytes > 0`, and only break if `hr < 0` (failure) or `read_bytes == 0` (true EOF).
+
+### 8.3 SystemFileAssociations Override Rule
+* **Problem:** In Windows 10/11, setting `PerceivedType = image` causes Explorer to default to `SystemFileAssociations\image\shellex\{e357fccd-a995-4576-b01f-234630154e96}`, which invokes Windows' built-in `PhotoMetadataHandler.dll`. Since that handler only understands WIC formats, `.wpg` files failed to render thumbnails.
+* **Resolution:** Register the CLSID explicitly under:
+  ```text
+  HKCU:\Software\Classes\SystemFileAssociations\.wpg\ShellEx\{E357FCCD-A995-4576-B01F-234630154E96} -> {6F0E9720-3051-4E78-8319-5A676BE466EC}
+  ```
+* **Visual Polish:**
+  - `Treatment = 2` (REG_DWORD): Enables drop-shadow photographic framing.
+  - `DefaultIcon = %SystemRoot%\System32\imageres.dll,-70`: Displays high-resolution picture icon as fallback.
+
+### 8.4 Native Desktop Viewer (`wpg-view.exe`)
+* Pure Win32 GDI double-buffered canvas in Rust with sub-10ms startup.
+* DWM Dark Mode titlebar (`DwmSetWindowAttribute`).
+* Smooth mouse-wheel zoom centered on cursor coordinates, drag-to-pan, directory browsing (`Arrow` keys/`Space`), PNG export (`S`), HUD overlay (`I`), and drag-and-drop (`WM_DROPFILES`).
+

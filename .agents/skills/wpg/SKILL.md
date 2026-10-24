@@ -210,4 +210,10 @@ description: >-
    - Συμβουλευτείτε πάντα το [`MEMORY.md`](file:///c:/Users/user/Desktop/wpg/MEMORY.md) για πλήρεις τεχνικές προδιαγραφές, εξισώσεις και ιστορικό αποφάσεων.
 5. **Ιστορική Διασάφηση (WordPerfect Disambiguation):**
    - Το WPG (Web Progressive Graphic) είναι σύγχρονο web standard του 2026 και δεν έχει καμία σχέση με το παρωχημένο format των '80s *WordPerfect Graphics* (`.wpg`). Όπως το TypeScript (`.ts`) έναντι του MPEG Transport Stream (`.ts`), η κατάληξη διακρίνεται από το context, το MIME type (`image/wpg`) και τα binary magic bytes `b"WPG\x01"`.
+6. **Windows Explorer Thumbnail Provider & ShellEx Rules:**
+   - **Stream EOF Handling:** Κατά την ανάγνωση COM streams (`IInitializeWithStream`), η μέθοδος `ISequentialStream::Read` επιστρέφει `S_FALSE (1)` στο τελευταίο chunk του αρχείου. Πρέπει **πάντα** να προστίθενται τα bytes (`read_bytes > 0`) στο memory buffer πριν τον τερματισμό, αποτρέποντας κολοβό AV1 bitstream (`Error parsing OBU data`).
+   - **SystemFileAssociations Override:** Στα Windows 10/11, όταν ένα αρχείο έχει `PerceivedType = image`, ο Explorer πέφτει αυτόματα στο `PhotoMetadataHandler.dll`. Καταχωρούμε πάντα ρητό override στο `HKCU:\Software\Classes\SystemFileAssociations\.wpg\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}`.
+   - **Photo Framing & Icon:** Ορίζουμε `Treatment = 2` για drop-shadow photo border και `DefaultIcon = %SystemRoot%\System32\imageres.dll,-70` για επίσημο graphical image icon.
+   - **Cache Flush:** Μετά από build του `wpg_thumb.dll`, επανεκκινούμε το `explorer.exe` (`Stop-Process -Name explorer -Force; Start-Process explorer.exe`) για άμεση εκκαθάριση της in-memory κρυφής μνήμης thumbnails.
+
 

@@ -426,4 +426,57 @@ A dedicated sandbox environment is available at `playground/`:
 - `playground/index.html`: Standalone glassmorphic GUI with real-time file inspection, drag-and-drop decoding, and header metadata analysis.
 - `playground/wpg-bundle.js`: Self-contained bundle with embedded base64 WebAssembly for 100% offline testing under the `file:///` protocol without CORS blocks.
 
+---
+
+## 13. Windows OS Shell Integration & Native Desktop Ecosystem
+
+WPG provides comprehensive, first-class integration with the Windows operating system without requiring administrative elevation (100% registered inside `HKCU:\Software\Classes`).
+
+### 13.1 Architecture Overview
+
+```
+                      Windows Explorer (explorer.exe)
+                                    │
+           ┌────────────────────────┴────────────────────────┐
+           ▼                                                 ▼
+[Double-Click / Context Menu]                       [Folder Browsing]
+           │                                                 │
+           ▼                                                 ▼
+   wpg-view.exe                                        wpg_thumb.dll
+ (Native Win32 Viewer)                              (COM InProcServer32)
+   • Sub-10ms startup                                 • IThumbnailProvider
+   • DWM Dark Mode                                    • IInitializeWithStream
+   • Pan, Zoom, HUD                                   • Hardware 32-bit ARGB DIB
+   • Directory Browsing                               • Aspect-Ratio Preserving
+```
+
+### 13.2 Windows Shell Thumbnail Provider (`wpg_thumb.dll`)
+Implemented as a native COM In-Process Server in Rust (`crates/wpg-thumb`):
+- **COM Interfaces:** Implements `IThumbnailProvider` (`{E357FCCD-A995-4576-B01F-234630154E96}`), `IInitializeWithStream` (`{B824B49D-22AC-4161-AC8A-9916E8FA3F7F}`), `IInitializeWithFile` (`{B7D14566-0509-4CCE-A71F-0A554233BD98}`), and `IClassFactory`.
+- **Stream Reading Robustness:** In Windows Shell COM, `ISequentialStream::Read` returns `S_FALSE` (`1`) on the final chunk when fewer bytes than requested are read (EOF condition). The provider correctly appends all remaining bytes before terminating, preventing stream truncation and ensuring clean AV1 OBU parsing.
+- **Threading Model:** Registered with `ThreadingModel = "Both"`, allowing Windows Explorer's thread pool to concurrently decode multiple `.wpg` thumbnails without STA marshaling contention.
+- **Hardware-Ready DIB Buffers:** Generates top-down 32-bit ARGB Device-Independent Bitmaps (`CreateDIBSection`) scaled smoothly to match the requested dimensions (`cx` up to 1024px) while preserving exact aspect ratios.
+
+### 13.3 Registry Hierarchy & Override Rules
+To ensure Windows Explorer resolves the WPG thumbnail provider reliably across all Windows 10 and 11 editions:
+1. **SystemFileAssociations Override:** When `PerceivedType = image` is declared on an extension, Windows defaults to calling `SystemFileAssociations\image\shellex\{e357fccd-a995-4576-b01f-234630154e96}` (`PhotoMetadataHandler.dll`). Because Windows' internal photo handler only recognizes legacy WIC formats, WPG explicitly registers:
+   ```text
+   HKCU:\Software\Classes\SystemFileAssociations\.wpg\ShellEx\{E357FCCD-A995-4576-B01F-234630154E96} -> {6F0E9720-3051-4E78-8319-5A676BE466EC}
+   ```
+2. **Photo Treatment (`Treatment = 2`):** Configures Explorer to render `.wpg` files with modern drop-shadow photographic framing rather than generic document borders.
+3. **Default Icon Fallback:** Points to `%SystemRoot%\System32\imageres.dll,-70` ensuring that file icons gracefully reflect graphical media even before thumbnails finish rendering.
+
+### 13.4 Native Desktop Viewer (`wpg-view.exe`)
+- **Ultra-Fast Win32 GDI Canvas:** Double-buffered memory DC eliminates flickering during rapid zooming and panning.
+- **Window Styling:** Integrates with Windows Desktop Window Manager (DWM) for immersive dark mode titlebars (`DwmSetWindowAttribute` with `DWMWA_USE_IMMERSIVE_DARK_MODE`).
+- **Interactive Controls:**
+  - `Mouse Wheel`: Smooth zoom anchored directly to the mouse cursor coordinates.
+  - `Left Click + Drag`: Real-time image panning.
+  - `Left / Right Arrow`, `Space / Backspace`: Browse forward and backward through all `.wpg` images in the current folder.
+  - `S`: Instant export of the active image to standard PNG.
+  - `F` / `F11`: Seamless fullscreen toggle.
+  - `I`: Heads-Up Display (HUD) overlay displaying resolution, file size, bpp, and zoom percentage.
+  - `Drag & Drop`: Direct `WM_DROPFILES` support for opening external `.wpg` files.
+
+
 

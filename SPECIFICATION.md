@@ -147,3 +147,24 @@ wpg-enc input.jpg output.wpg -q 85 -s 6 --mode auto --subsampling 420
 ```bash
 wpg-dec input.wpg output.png
 ```
+
+---
+
+## 7. Operating System Interoperability & Shell Bindings
+
+To facilitate seamless native desktop adoption across operating systems, WPG defines standardized file association, MIME type, and shell extension metadata:
+
+| Attribute | Specification Binding | Purpose |
+|---|---|---|
+| **File Extension** | `.wpg` | Standard container extension |
+| **Magic Signature** | `b"WPG\x01"` (`0x57 0x50 0x47 0x01`) | Binary format identification |
+| **MIME Media Type** | `image/wpg` | HTTP `Content-Type` header & web servers |
+| **Windows PerceivedType** | `image` | Windows Shell media categorization |
+| **Windows ProgID** | `WPGImage` | Shell handler association |
+| **Thumbnail Provider CLSID** | `{6F0E9720-3051-4E78-8319-5A676BE466EC}` | Native COM In-Process Server (`wpg_thumb.dll`) |
+| **ShellEx Handler IID** | `{E357FCCD-A995-4576-B01F-234630154E96}` | Windows `IThumbnailProvider` interface |
+| **SystemFileAssociations** | `SystemFileAssociations\.wpg` | Overrides generic photo handler fallbacks |
+| **Photo Treatment** | `Treatment = 2` | Modern drop-shadow photographic framing |
+| **Default Fallback Icon** | `%SystemRoot%\System32\imageres.dll,-70` | Standard graphical image file icon |
+| **Native Desktop Viewer** | `wpg-view.exe` | Zero-dependency Win32 GDI image viewer |
+
