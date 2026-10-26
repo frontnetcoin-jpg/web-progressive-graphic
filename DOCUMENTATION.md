@@ -298,15 +298,15 @@ println!("Dimensions: {}x{}, Mode: {:?}", header.width, header.height, header.mo
 # Inspect container structure and grain parameters
 .\target\release\wpg.exe info output.wpg
 
-# Run side-by-side PSNR, SSIM, and bpp benchmark against PNG, JPEG, and WebP
-.\target\release\wpg.exe bench sample.png --quality 80
+# Run 3-Format Head-to-Head benchmark (.wpg vs .webp vs .avif) with PSNR, SSIM, bpp, and encode/decode times
+.\target\release\wpg.exe bench photo.jpg --quality 80 --speed 6 --output-dir .\bench_out
 ```
 
-### 7.4 serve (Showcase & Viewer)
+### 7.4 serve (Showcase & 3-Format Benchmark Studio)
 ```powershell
 .\target\release\wpg.exe serve --port 3000
 ```
-Launches the embedded HTTP server with the interactive split-slider GUI, zoom lens, live parameter controls, REST API, and a live `<wpg-img>` preview. Static client assets are compiled into the binary with `include_str!` / `include_bytes!`, so client or showcase HTML changes require `cargo build --release` before `wpg.exe` serves them.
+Launches the embedded HTTP server with the **3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`)**, drag-and-drop `.jpg` upload dropzone, interactive split-slider GUI, zoom lens, live parameter controls, REST API, and a live `<wpg-img>` preview that automatically updates to the latest encoded `.wpg` (`/api/latest.wpg`). Static client assets are compiled into the binary with `include_str!` / `include_bytes!`, so client or showcase HTML changes require `cargo build --release` before `wpg.exe` serves them.
 
 ---
 
@@ -324,7 +324,7 @@ The showcase page mounts that element beside the integration snippet. **Reload /
 
 1. **ReadableStream.** `response.body.getReader()` appends chunks until at least 32 bytes have arrived, then copies the header and micro-preview across chunk boundaries. A 16-byte first packet does not paint a partial header.
 2. **Micro-preview.** The 16-byte block becomes a blurred SVG data-URI `<img>`. Declared `width` and `height` set `aspect-ratio`. The `<canvas>` stays 4×4 until the full frame is painted.
-3. **Worker.** `wpg-worker.js` performs Wasm allocation, AVIF wrapping, `createImageBitmap`, and Xorshift32 film grain on an `OffscreenCanvas`. The decoded frame is transferred with `postMessage(message, [bitmap])`. The main thread sends a copy of the file bytes so a worker failure can still fall back.
+3. **Zero-Wasm Fast Path & Worker.** `wpg-worker.js` wraps standard Mode 0 AV1 payloads into a 242-byte ISOBMFF header and applies Xorshift32 film grain on an `OffscreenCanvas` in pure JavaScript (**0 KB Wasm downloaded**). When an image uses Mode 1 (Palette), Mode 2 (Modular), `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY`, the worker lazily loads `wpg-decoder.wasm` (~130 KB with LTO) on demand. The decoded frame is transferred with `postMessage(message, [bitmap])`. The main thread sends a copy of the file bytes so a worker failure can still fall back.
 4. **Fallbacks.** Worker, then main-thread Wasm, then `POST` to the `fallback-url` attribute (default `/api/decode`). `fallback-url="none"` skips the server. If `createImageBitmap` cannot decode the payload, the client uses an `HTMLImageElement`.
 5. **Lazy recycle.** `loading="lazy"` keeps an `IntersectionObserver` with a `200px` root margin. Outside that margin the in-flight decode is cancelled, the `ImageBitmap` is closed, and the canvas backing store is released. Scrolling back fetches the URL again.
 6. **SSR.** `renderWpgImg()` returns Declarative Shadow DOM markup with the aspect-ratio box and the SVG preview. It does not need a DOM and can run in Node, Next.js, Nuxt, or SvelteKit.
@@ -346,12 +346,14 @@ Other attributes: `wasm-url`, `worker-url`, `fallback-url`.
 
 ### 8.2 REST Endpoints
 The `wpg serve` background service exposes:
-- `POST /api/encode`: Accepts a JSON body (`image_data`, `quality`, `speed`, `mode`, `subsampling`, `enable_grain`, `enable_preview`) and returns JSON benchmark metrics plus the encoded payload.
+- `POST /api/encode`: Accepts a JSON body (`image_data`, `quality`, `speed`, `mode`, `subsampling`, `enable_grain`, `enable_preview`, `filename`) and returns JSON 3-format benchmark metrics (`.wpg`, `.webp`, `.avif`, plus PNG/JPEG/VP8L) and the encoded base64 payloads.
 - `POST /api/decode`: Accepts raw `.wpg` bytes and returns a decoded PNG. This is the client fallback endpoint.
 - `GET /api/sample.wpg`: Serves a reference `.wpg` file. A query string such as `?t=` is ignored.
-- `GET /wpg-element.js`: Serves the Web Component module.
-- `GET /wpg-worker.js`: Serves the decode worker.
-- `GET /wpg-decoder.wasm`: Serves the Wasm decoder (about 201 KB, including a pure-Rust Zstd inflater).
+- `GET /api/latest.wpg`: Serves the most recently encoded `.wpg` from the Benchmark Studio for live `<wpg-img>` verification.
+- `GET /api/sample.jpg`: Serves a camera JPEG sample with natural sensor grain for instant 3-format benchmarking.
+- `GET /wpg-element.js`: Serves the Web Component module (`Cache-Control: public, max-age=31536000, immutable`).
+- `GET /wpg-worker.js`: Serves the decode worker (`Cache-Control: public, max-age=31536000, immutable`).
+- `GET /wpg-decoder.wasm`: Serves the on-demand Wasm decoder (~130 KB with LTO, including a pure-Rust Zstd inflater).
 
 ---
 
@@ -373,8 +375,8 @@ To ensure 100% confidence in comparative benchmarks:
 
 ## 10. Client-Side WebAssembly & NPM Distribution
 
-### 10.1 WebAssembly Client-Side Decoder (`wpg-decoder.wasm`)
-The `crates/wpg-wasm` crate compiles to `wpg-decoder.wasm` (about 201 KB) without POSIX/libc dependencies. Mode 0 still wraps the AV1 OBU as AVIF for the browser decoder. Mode 1, Mode 2, secondary Zstd on a Mode 0 payload, and the alpha plane are inflated inside the module.
+### 10.1 Zero-Wasm Fast Path & WebAssembly Client-Side Decoder (`wpg-decoder.wasm`)
+Standard Mode 0 `.wpg` photographs decode with **0 KB of WebAssembly** via the pure-JS 242-byte ISOBMFF wrapper (`wrapWpgMode0ToAvifJs`) and `applyFilmGrainJs` inside `wpg-worker.js`. For Mode 1 (Palette), Mode 2 (Modular), `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY`, the worker lazily loads `crates/wpg-wasm` (`wpg-decoder.wasm`, ~130 KB with LTO / ~193 KB with thin LTO), compiled without POSIX/libc dependencies:
 - `wpg_parse_info(ptr, len, out_info)`: Extracts dimensions, mode, and bitflags in < 0.01 ms.
 - `wpg_decode_preview(ptr, len, out_rgba_64)`: Unpacks the 16-byte micro-preview into a 4x4 RGBA buffer.
 - `wpg_wrap_to_avif(ptr, len, out_ptr, out_len)`: Wraps a Mode 0 AV1 OBU in a minimal ISOBMFF header. Returns `-5` for palette and modular payloads. A Mode 0 payload with `FLAG_SECONDARY_ENTROPY` is Zstd-inflated first. The returned buffer is an exact-size allocation freed with `wpg_free(ptr, len)`.

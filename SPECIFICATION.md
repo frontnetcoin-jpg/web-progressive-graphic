@@ -136,14 +136,30 @@ These figures are the same measurements published in `README.md`. Bits per pixel
 | **JPEG (Q70)** | 1,373.4 KB | 0.935 | 36.8 dB | 0.9782 | +216.5% (+939 KB) |
 | **PNG (Uncompressed RGB)** | 20,965.9 KB | 14.280 | Lossless | 1.0000 | +4,730% |
 
-### 4.2 Mixed Test Image (256×256, photographic gradients and vector UI, Quality 80)
+### 4.2 High-Resolution Photograph (`testing.jpg`, 1344×768, Quality 80, Speed 6)
+
+| Format | File Size | vs Input (`.jpg`) | bpp | PSNR | SSIM | Encode / Decode Time |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **WPG (`.wpg` Q80, S6)** | **70.99 KB** (`72,694 B`) | **-50.1%** | **0.563** | **39.87 dB** | **0.9802** | **1,292.6 / 402.1 ms** |
+| **AVIF (`.avif` Std Q80, S6)** | 72.41 KB (`74,149 B`) | -49.1% | 0.575 | 40.05 dB | 0.9818 | 2,773.3 / 271.5 ms |
+| **WebP (`.webp` Lossy Q80, S6)** | 87.82 KB (`89,928 B`) | -38.3% | 0.697 | 39.18 dB | 0.9794 | 225.2 / 22.4 ms |
+
+### 4.3 Camera Photograph with Sensor Grain (`camera_photo.jpg`, 320×240, Quality 80, Speed 6)
+
+| Format | File Size | vs Input (`.jpg`) | bpp | PSNR | SSIM | Encode / Decode Time |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **WPG (`.wpg` Q80, S6)** | **1,940 B** (`1.89 KB`) | **-85.7%** | **0.202** | **39.68 dB** | **0.9360** | **173.0 / 28.7 ms** |
+| **AVIF (`.avif` Std Q80, S6)** | 2,626 B (`2.56 KB`) | -80.7% | 0.274 | 40.33 dB | 0.9389 | 322.4 / 24.1 ms |
+| **WebP (`.webp` Lossy Q80, S6)** | 2,904 B (`2.84 KB`) | -78.7% | 0.302 | 39.47 dB | 0.9392 | 23.9 / 1.4 ms |
+
+### 4.4 Mixed Test Image (256×256, photographic gradients and vector UI, Quality 80)
 
 | Format | File Size | Bits Per Pixel (bpp) | PSNR | SSIM | vs PNG Baseline |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **WPG (AV1 Enhanced Q80)** | **2,134 B** | **0.260** | **31.10 dB** | **0.8876** | **-65.7%** |
+| **WPG (AV1 Enhanced Q80)** | **2,372 B** | **0.290** | **31.96 dB** | **0.9958** | **-61.9%** |
 | **WebP (Lossy Q80)** | 2,142 B | 0.261 | 32.05 dB | 0.9961 | -65.6% |
 | **WebP (Lossless VP8L)** | 2,150 B | 0.262 | 99.99 dB | 1.0000 | -65.4% |
-| **AVIF (Standard Q80)** | 2,817 B | 0.344 | 42.33 dB | 0.9969 | -54.7% |
+| **AVIF (Standard Q80)** | 2,817 B | 0.344 | 42.70 dB | 0.9969 | -54.7% |
 | **PNG (Baseline)** | 6,222 B | 0.760 | 99.99 dB | 1.0000 | Baseline |
 | **JPEG (Q80)** | 8,262 B | 1.009 | 38.85 dB | 0.9966 | +32.8% |
 
@@ -167,8 +183,8 @@ wpg decode input.wpg preview.png --preview-only
 # View comprehensive container & compression analysis
 wpg info input.wpg
 
-# Run side-by-side comparative benchmark
-wpg bench input.png --quality 80
+# Run 3-Format Head-to-Head benchmark (.wpg vs .webp vs .avif) and export converted files
+wpg bench input.jpg --quality 80 --speed 6 --output-dir ./bench_out
 
 # Launch the interactive Web Showcase & Viewer server
 wpg serve --port 3000

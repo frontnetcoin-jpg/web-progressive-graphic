@@ -64,6 +64,6 @@ Open `index.html` in either of these ways:
 # 4. Print container info and flags:
 ..\target\release\wpg.exe info output\photo.wpg
 
-# 5. Full comparison (WPG vs WebP vs AVIF vs PNG vs JPEG):
-..\target\release\wpg.exe bench input\photo.jpg --quality 80
+# 5. Full 3-Format Head-to-Head Benchmark (.wpg vs .webp vs .avif) and export converted files:
+..\target\release\wpg.exe bench input\photo.jpg --quality 80 --speed 6 --output-dir output
 ```

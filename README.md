@@ -4,7 +4,7 @@
 [![AV1 Intra](https://img.shields.io/badge/core-AV1%20Intra-blue.svg)](https://aomediacodec.github.io/av1-spec/)
 [![Zero-CLS](https://img.shields.io/badge/preview-16B%20Zero--CLS-emerald.svg)]()
 [![Pure Rust](https://img.shields.io/badge/pure-Rust%20(No%20C%2FNASM)-purple.svg)]()
-[![Wasm](https://img.shields.io/badge/decoder-201KB%20Wasm%20(Offline)-blueviolet.svg)]()
+[![Wasm](https://img.shields.io/badge/decoder-0KB%20JS%20Fast--Path%20%7C%20130KB%20Wasm-blueviolet.svg)]()
 [![npm version](https://img.shields.io/npm/v/wpg-img.svg)](https://www.npmjs.com/package/wpg-img)
 [![CLS: 0.000](https://img.shields.io/badge/CLS-0.000%20(Perfect)-success.svg)]()
 [![PageSpeed](https://img.shields.io/badge/PageSpeed-100%2F100-brightgreen.svg)]()
@@ -16,8 +16,8 @@ Built on state-of-the-art **AV1 Intra** coding, WPG fundamentally resolves the c
 - **20% to 35% higher compression** on real-world photographs via Parametric Film Grain Synthesis.
 - **Eradication of 400–800 bytes of container bloat** with a custom 16-byte fixed binary header.
 - **Zero Cumulative Layout Shift (Zero CLS)** via an integrated 16-byte micro-preview rendering in `< 0.05 ms`.
-- **100% Offline WebAssembly Decoder (201 KB)** & drop-in `<wpg-img>` Web Component for seamless browser adoption.
-- **100% Pure Rust implementation** (`rav1e` + `rav1d`), free of external C/NASM build dependencies.
+- **Zero-Wasm (0 KB) Pure-JS Fast Path** for Mode 0 photographs + on-demand **130 KB WebAssembly Decoder** for lossless Palette/Modular & Alpha streams, wrapped in the `<wpg-img>` Web Component.
+- **Multi-Threaded Pure Rust implementation** (`rav1e 0.8` + `rav1d`), encoding **2.1× faster than standard AVIF** with zero external C/NASM build dependencies.
 
 ---
 
@@ -76,20 +76,48 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 
 ---
 
-### 2. Mixed Test Image (Photographic + Vector UI elements, Quality 80)
+### 2. High-Resolution AI / Studio Render (`testing.jpg`, 1344×768 pixels, Quality 80, Speed 6)
+*Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`) on a detailed 1344×768 photograph (`142.2 KB` input JPEG).*
+
+| Format | File Size | vs Input (`.jpg`) | vs PNG Baseline | bpp | PSNR | SSIM | Encode / Decode Time |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **✨ WPG (`.wpg` Q80, S6)** | **70.99 KB** (`72,694 B`) | **-50.1%** 🚀 | **-95.2%** | **0.563** | **39.87 dB** | **0.9802** | **1,292.6 / 402.1 ms** |
+| **AVIF (`.avif` Std Q80, S6)** | 72.41 KB (`74,149 B`) | -49.1% | -95.1% | 0.575 | 40.05 dB | 0.9818 | 2,773.3 / 271.5 ms |
+| **WebP (`.webp` Lossy Q80, S6)** | 87.82 KB (`89,928 B`) | -38.3% | -94.0% | 0.697 | 39.18 dB | 0.9794 | 225.2 / 22.4 ms |
+| **Input Source (`.jpg`)** | 142.24 KB (`145,650 B`) | Baseline | -90.3% | 1.129 | Source | 1.0000 | — |
+| **PNG (Lossless Baseline)** | 1,471.92 KB (`1,507,244 B`) | +934.8% | Baseline | 11.682 | 99.99 dB | 1.0000 | 48.6 / 1.0 ms |
+
+> **Key Takeaway:** WPG cuts the original JPEG size in half (**-50.1%**), beats Google's Lossy WebP by **-19.2% in size while simultaneously achieving higher PSNR (`39.87 dB` vs `39.18 dB`) and higher SSIM (`0.9802` vs `0.9794`)**, and encodes **2.15× faster than standard AVIF** (`1.29s` vs `2.77s`).
+
+---
+
+### 3. Camera Photograph with Sensor Grain (`camera_photo.jpg`, 320×240 pixels, Quality 80, Speed 6)
+
+| Format | File Size | vs Input (`.jpg`) | bpp | Compression Ratio | PSNR | SSIM | Encode / Decode Time |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **✨ WPG (`.wpg` Q80, S6)** | **1,940 B** (`1.89 KB`) | **-85.7%** 🚀 | **0.202** | **118.8 : 1** | **39.68 dB** | **0.9360** | **173.0 / 28.7 ms** |
+| **AVIF (`.avif` Std Q80, S6)** | 2,626 B (`2.56 KB`) | -80.7% | 0.274 | 87.7 : 1 | 40.33 dB | 0.9389 | 322.4 / 24.1 ms |
+| **WebP (`.webp` Lossy Q80, S6)** | 2,904 B (`2.84 KB`) | -78.7% | 0.302 | 79.3 : 1 | 39.47 dB | 0.9392 | 23.9 / 1.4 ms |
+| **Input Source (`.jpg`)** | 13,610 B (`13.29 KB`) | Baseline | 1.418 | 16.9 : 1 | Source | 1.0000 | — |
+
+> **Key Takeaway:** On camera imagery with natural sensor grain, WPG is **26.1% smaller than AVIF** and **33.2% smaller than WebP** while maintaining **39.68 dB PSNR** and encoding in **173 ms**.
+
+---
+
+### 4. Mixed Test Image (Photographic + Vector UI elements, 256×256, Quality 80)
 
 | Format | File Size | Bits Per Pixel (bpp) | PSNR | SSIM | vs PNG Baseline |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (Our Format)** | **2,134 B** | **0.260** | **31.10 dB** | **0.8876** | **-65.7%** 🚀 |
+| **✨ WPG (Our Format)** | **2,372 B** | **0.290** | **31.96 dB** | **0.9958** | **-61.9%** 🚀 |
 | **WebP (Lossy Q80)** | 2,142 B | 0.261 | 32.05 dB | 0.9961 | -65.6% |
 | **WebP (Lossless VP8L)** | 2,150 B | 0.262 | 99.99 dB | 1.0000 | -65.4% |
-| **AVIF (Standard Q80)** | 2,817 B | 0.344 | 42.33 dB | 0.9969 | -54.7% |
+| **AVIF (Standard Q80)** | 2,817 B | 0.344 | 42.70 dB | 0.9969 | -54.7% |
 | **PNG (Baseline)** | 6,222 B | 0.760 | 99.99 dB | 1.0000 | Baseline |
 | **JPEG (Q80)** | 8,262 B | 1.009 | 38.85 dB | 0.9966 | +32.8% |
 
 ---
 
-### 3. 🌐 Production Deployment Case Study: any2prompt.com (96/100 Mobile PageSpeed)
+### 5. 🌐 Production Deployment Case Study: any2prompt.com (96/100 Mobile PageSpeed)
 *Bitstream metrics verified in production on a live AI application ([any2prompt.com](https://any2prompt.com)).*
 
 | Metric / Asset Group | Before (Legacy JPG/PNG) | With WPG & `<wpg-img>` | Real-World Impact |
@@ -105,9 +133,9 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 
 ---
 
-## ⚡ Web Component `<wpg-img>` & WebAssembly Decoder
+## ⚡ Web Component `<wpg-img>` & Zero-Wasm Fast Path
 
-WPG ships with a drop-in native Web Component `<wpg-img>` powered by a standalone **201 KB WebAssembly decoder (`wpg-decoder.wasm`)**. Mode 0 is decoded by the browser's AV1 engine. Palette, modular, and alpha planes are decoded inside the module.
+WPG ships with a drop-in native Web Component `<wpg-img>` that decodes standard Mode 0 photographs via a **0 KB Wasm pure-JS ISOBMFF fast path** inside a dedicated Web Worker, and lazily loads the **130 KB WebAssembly decoder (`wpg-decoder.wasm`)** on demand only when an image uses Palette mode, Modular lossless mode, `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY`.
 
 ### 1. Plain HTML / Vanilla JS
 ```html
@@ -165,7 +193,7 @@ import 'wpg-img';
 ### How `<wpg-img>` Operates Under the Hood:
 1. **ReadableStream.** `response.body.getReader()` accumulates bytes until the 16-byte header and 16-byte micro-preview are both present, including when the first packet is only 16 bytes.
 2. **Zero CLS.** `width` and `height` set `aspect-ratio` immediately. The micro-preview is a blurred SVG, so the layout box and colors are visible before the AV1 payload arrives. The display canvas stays 4×4 until the final frame.
-3. **Worker decode.** `wpg-worker.js` runs the Wasm decoder off the main thread. Mode 0 is wrapped as AVIF and returned as a transferable `ImageBitmap`. Palette and modular frames are decoded to RGBA in the module. Xorshift32 film grain is painted on an `OffscreenCanvas` inside the worker.
+3. **Zero-Wasm Fast Path & On-Demand Worker Decode.** `wpg-worker.js` wraps standard Mode 0 AV1 payloads into a 242-byte ISOBMFF header and applies Xorshift32 film grain on an `OffscreenCanvas` in pure JavaScript (**0 KB Wasm downloaded**), returning a transferable `ImageBitmap`. If the asset uses Mode 1 (Palette), Mode 2 (Modular), `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY`, the worker lazily loads `wpg-decoder.wasm` (~130 KB with LTO) on demand.
 4. **Fallbacks.** Worker, then main-thread Wasm, then `POST` to `fallback-url` (default `/api/decode`). `fallback-url="none"` skips the server.
 5. **Lazy recycle.** `loading="lazy"` uses an `IntersectionObserver` with a `200px` root margin. Leaving that margin closes the bitmap and releases the canvas. Scrolling back fetches the image again.
 6. **SSR.** `renderWpgImg()` emits Declarative Shadow DOM with the aspect-ratio box and SVG preview, so Next.js, Nuxt, and SvelteKit can paint it before JavaScript runs.
@@ -226,11 +254,11 @@ Compiled release binaries are located at `target/release/wpg.exe`:
 .\target\release\wpg.exe serve --port 3000
 ```
 Open **[http://localhost:3000](http://localhost:3000)** to explore:
-* Interactive **Split Comparison Slider** with 1:1 synchronization and zoom magnifier lens.
+* **3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`):** Drop any `.jpg` (or PNG/WebP) to convert it simultaneously across all three codecs at identical Quality and Speed presets (e.g. `Quality 80 • Speed 6`), with podium cards, relative size bars, PSNR/SSIM, encode/decode times, and 1-click download for all 3 formats.
+* Interactive **Split Comparison Slider** with 1:1 synchronization against `.avif`, `.webp`, uploaded `.jpg`, or original `.png`.
 * Real-time sliders for Quality (1..100), Speed (1..10), Subsampling (420/422/444), and Film Grain toggle.
-* Drag & Drop custom image uploads with automatic EXIF orientation normalization.
-* Instant download actions: `⬇️ Download .wpg`, `⬇️ Export PNG`, `⚡ 16B Micro-Preview (.bin)`.
-* Live Web Component integration card: a real `<wpg-img src="/api/sample.wpg" alt="Live WPG Component Preview">` and a **Reload / Test Transition** button that reloads it with a cache-busting `?t=` query.
+* Instant download actions: `Download .wpg`, `Download .webp`, `Download .avif`, `Download All 3`, `Save Decoded PNG`, and `16B Preview (.bin)`.
+* Live Web Component integration card: a real `<wpg-img>` that automatically updates to preview your latest encoded `.wpg` (`/api/latest.wpg`) plus a **Reload / Test Transition** button.
 
 ---
 
@@ -268,9 +296,10 @@ Convert entire image folders (`.png`, `.jpg`, `.jpeg`, `.webp`) into `.wpg` with
 ```
 *Outputs detailed image dimensions, mode, flags, payload size, film grain parameters, and micro-preview palette.*
 
-### 7. Run Comprehensive Benchmark:
+### 7. Run 3-Format Head-to-Head Benchmark (`.wpg` vs `.webp` vs `.avif`):
 ```powershell
-.\target\release\wpg.exe bench input.png --quality 80
+# Benchmark an image at Quality 80, Speed 6 and optionally export all 3 converted files (-o):
+.\target\release\wpg.exe bench photo.jpg --quality 80 --speed 6 --output-dir .\bench_out
 ```
 
 ### 8. Native Desktop Image Viewer:
@@ -370,7 +399,7 @@ wpg/
 ├── README.md                # Project overview, benchmarks & CLI reference
 ├── DOCUMENTATION.md         # Comprehensive architectural & technical specification
 ├── SPECIFICATION.md         # Official Binary Format Specification v1.0
-├── wpg-decoder.wasm         # Standalone ~201 KB WebAssembly client decoder
+├── wpg-decoder.wasm         # Standalone on-demand WebAssembly client decoder (~130 KB with LTO)
 ├── wpg-element.js           # <wpg-img> ESM client (stream, worker pool, SSR)
 ├── wpg-worker.js            # Off-thread Wasm decode and film grain
 ├── crates/
