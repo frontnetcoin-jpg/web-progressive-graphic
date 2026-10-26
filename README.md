@@ -4,7 +4,7 @@
 [![AV1 Intra](https://img.shields.io/badge/core-AV1%20Intra-blue.svg)](https://aomediacodec.github.io/av1-spec/)
 [![Zero-CLS](https://img.shields.io/badge/preview-16B%20Zero--CLS-emerald.svg)]()
 [![Pure Rust](https://img.shields.io/badge/pure-Rust%20(No%20C%2FNASM)-purple.svg)]()
-[![Wasm](https://img.shields.io/badge/decoder-61KB%20Wasm%20(Offline)-blueviolet.svg)]()
+[![Wasm](https://img.shields.io/badge/decoder-201KB%20Wasm%20(Offline)-blueviolet.svg)]()
 [![npm version](https://img.shields.io/npm/v/wpg-img.svg)](https://www.npmjs.com/package/wpg-img)
 [![CLS: 0.000](https://img.shields.io/badge/CLS-0.000%20(Perfect)-success.svg)]()
 [![PageSpeed](https://img.shields.io/badge/PageSpeed-100%2F100-brightgreen.svg)]()
@@ -16,7 +16,7 @@ Built on state-of-the-art **AV1 Intra** coding, WPG fundamentally resolves the c
 - **20% to 35% higher compression** on real-world photographs via Parametric Film Grain Synthesis.
 - **Eradication of 400–800 bytes of container bloat** with a custom 16-byte fixed binary header.
 - **Zero Cumulative Layout Shift (Zero CLS)** via an integrated 16-byte micro-preview rendering in `< 0.05 ms`.
-- **100% Offline WebAssembly Decoder (61 KB)** & drop-in `<wpg-img>` Web Component for seamless browser adoption.
+- **100% Offline WebAssembly Decoder (201 KB)** & drop-in `<wpg-img>` Web Component for seamless browser adoption.
 - **100% Pure Rust implementation** (`rav1e` + `rav1d`), free of external C/NASM build dependencies.
 
 ---
@@ -101,13 +101,13 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 | **First Contentful Paint (FCP)** | 0.8 s | **0.7 s** | **0.7s sub-second paint** |
 | **Largest Contentful Paint (LCP)** | 3.1 s (Red) | **1.8 s** (Green) | **-42% faster contentful paint** |
 
-> **Production Key Insight:** By pairing `.wpg` batch encoding with `<wpg-img loading="lazy">` and `<script defer>`, total page image weight fell from **12.88 MB down to 1.08 MB (-91.6%)**, eliminating all Lighthouse next-gen format warnings and boosting mobile performance to **96/100**.
+> **Production Key Insight:** By pairing `.wpg` batch encoding with `<wpg-img loading="lazy">` and `<script type="module" src="/wpg-element.js">`, total page image weight fell from **12.88 MB down to 1.08 MB (-91.6%)**, eliminating all Lighthouse next-gen format warnings and boosting mobile performance to **96/100**.
 
 ---
 
 ## ⚡ Web Component `<wpg-img>` & WebAssembly Decoder
 
-WPG ships with a drop-in native Web Component `<wpg-img>` powered by a standalone **61 KB WebAssembly decoder (`wpg-decoder.wasm`)**. It decodes `.wpg` files 100% offline in the visitor's browser without any server-side decoding dependency.
+WPG ships with a drop-in native Web Component `<wpg-img>` powered by a standalone **201 KB WebAssembly decoder (`wpg-decoder.wasm`)**. Mode 0 is decoded by the browser's AV1 engine. Palette, modular, and alpha planes are decoded inside the module.
 
 ### 1. Plain HTML / Vanilla JS
 ```html
@@ -163,12 +163,12 @@ import 'wpg-img';
 ```
 
 ### How `<wpg-img>` Operates Under the Hood:
-1. **Zero CLS (Cumulative Layout Shift):** Reads the 16-byte fixed header instantly to set aspect ratio and layout boundaries.
-2. **Instant Micro-Preview (< 0.05 ms):** Unpacks the 16-byte micro-preview (4 K-means centroid colors + 4x4 spatial grid) onto an HTML5 canvas with a smooth CSS blur. The visitor immediately sees full image colors and layout with zero jumping.
-3. **Native Lazy Loading (`loading="lazy"`):** When `loading="lazy"` is set, an `IntersectionObserver` with a `200px` root margin defers HTTP fetching until the user scrolls near, eliminating mobile network saturation.
-4. **In-Memory GPU Decoding (0.005 ms overhead):** The bundled 61 KB WebAssembly decoder packages raw AV1 OBUs into native browser GPU decoders via `ImageBitmap`.
-5. **Real-Time Film Grain:** Client-side Xorshift32 PRNG reconstructs film grain directly on the canvas.
-6. **Smooth Cross-Fade:** Transitions seamlessly from blurred placeholder to pin-sharp full resolution.
+1. **ReadableStream.** `response.body.getReader()` accumulates bytes until the 16-byte header and 16-byte micro-preview are both present, including when the first packet is only 16 bytes.
+2. **Zero CLS.** `width` and `height` set `aspect-ratio` immediately. The micro-preview is a blurred SVG, so the layout box and colors are visible before the AV1 payload arrives. The display canvas stays 4×4 until the final frame.
+3. **Worker decode.** `wpg-worker.js` runs the Wasm decoder off the main thread. Mode 0 is wrapped as AVIF and returned as a transferable `ImageBitmap`. Palette and modular frames are decoded to RGBA in the module. Xorshift32 film grain is painted on an `OffscreenCanvas` inside the worker.
+4. **Fallbacks.** Worker, then main-thread Wasm, then `POST` to `fallback-url` (default `/api/decode`). `fallback-url="none"` skips the server.
+5. **Lazy recycle.** `loading="lazy"` uses an `IntersectionObserver` with a `200px` root margin. Leaving that margin closes the bitmap and releases the canvas. Scrolling back fetches the image again.
+6. **SSR.** `renderWpgImg()` emits Declarative Shadow DOM with the aspect-ratio box and SVG preview, so Next.js, Nuxt, and SvelteKit can paint it before JavaScript runs.
 
 ---
 
@@ -179,7 +179,7 @@ Images account for over **60% of total web page weight** and are the leading cau
 ### 1. 📐 Flawless Cumulative Layout Shift (CLS: 0.000)
 * **The Problem:** Modern search engines (Google Search, Discover) heavily penalize websites when layout elements jump during image asset loading.
 * **The WPG Guarantee:** Thanks to WPG's sequential binary layout, `<wpg-img>` extracts the image dimensions from the 16-byte fixed header in **< 0.05 ms**—long before full network payloads arrive. It automatically allocates the exact aspect-ratio bounding box, guaranteeing a **CLS of 0.000**.
-* **Instant Visual Engagement:** The embedded 16-byte micro-preview renders a smooth, color-matched blurred canvas immediately, eliminating jarring white boxes and dramatically cutting user bounce rates.
+* **Instant Visual Engagement:** The embedded 16-byte micro-preview renders as a color-matched blurred SVG as soon as those bytes arrive, before the rest of the file.
 
 ### 2. ⚡ Accelerated Largest Contentful Paint (LCP)
 * WPG delivers **20% to 35% smaller file sizes than AVIF** on camera photographs (via Parametric Film Grain Synthesis) and **up to 68% smaller than legacy JPEG**.
@@ -230,7 +230,7 @@ Open **[http://localhost:3000](http://localhost:3000)** to explore:
 * Real-time sliders for Quality (1..100), Speed (1..10), Subsampling (420/422/444), and Film Grain toggle.
 * Drag & Drop custom image uploads with automatic EXIF orientation normalization.
 * Instant download actions: `⬇️ Download .wpg`, `⬇️ Export PNG`, `⚡ 16B Micro-Preview (.bin)`.
-* Live Web Component integration code card.
+* Live Web Component integration card: a real `<wpg-img src="/api/sample.wpg" alt="Live WPG Component Preview">` and a **Reload / Test Transition** button that reloads it with a cache-busting `?t=` query.
 
 ---
 
@@ -370,8 +370,9 @@ wpg/
 ├── README.md                # Project overview, benchmarks & CLI reference
 ├── DOCUMENTATION.md         # Comprehensive architectural & technical specification
 ├── SPECIFICATION.md         # Official Binary Format Specification v1.0
-├── wpg-decoder.wasm         # Standalone 61 KB WebAssembly client decoder
-├── wpg-element.js           # Native Web Component (<wpg-img>)
+├── wpg-decoder.wasm         # Standalone ~201 KB WebAssembly client decoder
+├── wpg-element.js           # <wpg-img> ESM client (stream, worker pool, SSR)
+├── wpg-worker.js            # Off-thread Wasm decode and film grain
 ├── crates/
 │   ├── wpg-wasm/            # Pure Wasm sub-crate (wasm32-unknown-unknown, zero libc)
 │   └── wpg-thumb/           # Native Windows Shell Thumbnail Provider COM DLL (IThumbnailProvider)

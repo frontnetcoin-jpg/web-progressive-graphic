@@ -81,7 +81,10 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
     }
 
     let method = parts[0];
-    let path = parts.get(1).unwrap_or(&"/");
+    let request_target = parts.get(1).copied().unwrap_or("/");
+    // Drop the query string so /api/sample.wpg?t=... still hits the sample route.
+    let path_no_query = request_target.split('?').next().unwrap_or(request_target);
+    let path = &path_no_query;
 
     let mut content_length = 0usize;
     let mut line = String::new();
@@ -103,7 +106,9 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
         reader.read_exact(&mut body)?;
     }
 
-    if method == "GET" && (*path == "/" || path.starts_with("/?")) {
+    let is_get_or_head = method == "GET" || method == "HEAD";
+
+    if is_get_or_head && (*path == "/" || path.starts_with("/?")) {
         send_response(stream, "text/html; charset=utf-8", HTML_CONTENT.as_bytes())?;
     } else if method == "POST" && *path == "/api/encode" {
         match handle_encode_api(&body) {
@@ -125,11 +130,13 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
                 send_response_status(stream, 400, "Bad Request", "application/json", err_json.as_bytes())?;
             }
         }
-    } else if method == "GET" && *path == "/wpg-element.js" {
+    } else if is_get_or_head && *path == "/wpg-element.js" {
         send_response(stream, "application/javascript; charset=utf-8", WPG_ELEMENT_JS.as_bytes())?;
-    } else if method == "GET" && *path == "/wpg-decoder.wasm" {
+    } else if is_get_or_head && *path == "/wpg-worker.js" {
+        send_response(stream, "application/javascript; charset=utf-8", WPG_WORKER_JS.as_bytes())?;
+    } else if is_get_or_head && *path == "/wpg-decoder.wasm" {
         send_response(stream, "application/wasm", WPG_DECODER_WASM)?;
-    } else if method == "GET" && *path == "/api/sample.wpg" {
+    } else if is_get_or_head && *path == "/api/sample.wpg" {
         match generate_sample_wpg() {
             Ok(wpg_bytes) => {
                 send_response(stream, "application/octet-stream", &wpg_bytes)?;
@@ -139,7 +146,7 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
                 send_response_status(stream, 500, "Internal Server Error", "application/json", err_json.as_bytes())?;
             }
         }
-    } else if method == "GET" && (*path == "/api/sample.avif" || *path == "/api/sample1.avif") {
+    } else if is_get_or_head && (*path == "/api/sample.avif" || *path == "/api/sample1.avif") {
         match generate_sample_avif(1) {
             Ok(avif_bytes) => {
                 send_response(stream, "image/avif", &avif_bytes)?;
@@ -668,212 +675,8 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 
 const WPG_DECODER_WASM: &[u8] = include_bytes!("../wpg-decoder.wasm");
 
-const WPG_ELEMENT_JS: &str = r#"/**
- * <wpg-img> Web Component with Offline WebAssembly Decoder
- * - Instant 16-byte micro-preview with 0 CLS (< 0.05ms)
- * - 100% Client-Side Wasm / Native GPU Hardware Decoding (Zero Server Roundtrip)
- * - Real-Time Deterministic Film Grain Synthesis
- * - Graceful Fallback to /api/decode
- */
-let wpgWasmModule = null;
-
-async function getWpgWasm() {
-    if (wpgWasmModule) return wpgWasmModule;
-    try {
-        const resp = await fetch('/wpg-decoder.wasm');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const bytes = await resp.arrayBuffer();
-        const { instance } = await WebAssembly.instantiate(bytes, {});
-        wpgWasmModule = instance;
-        return wpgWasmModule;
-    } catch (e) {
-        console.warn('WPG Wasm decoder unavailable, falling back to server decode:', e);
-        return null;
-    }
-}
-
-class WpgImageElement extends HTMLElement {
-    static get observedAttributes() { return ['src', 'alt', 'width', 'height']; }
-
-    constructor() {
-        super();
-        this.attachShadow({ mode: 'open' });
-        this.shadowRoot.innerHTML = `
-            <style>
-                :host {
-                    display: inline-block;
-                    position: relative;
-                    overflow: hidden;
-                    background: #111420;
-                    border-radius: 8px;
-                    line-height: 0;
-                }
-                canvas {
-                    display: block;
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                    transition: filter 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-                }
-                .preview-mode {
-                    filter: blur(14px);
-                    transform: scale(1.05);
-                }
-                .loaded-mode {
-                    filter: blur(0px);
-                    transform: scale(1);
-                }
-            </style>
-            <canvas id="cvs"></canvas>
-        `;
-    }
-
-    connectedCallback() {
-        if (this.getAttribute('src')) {
-            this.loadWpg(this.getAttribute('src'));
-        }
-    }
-
-    attributeChangedCallback(name, oldVal, newVal) {
-        if (name === 'src' && oldVal !== newVal && newVal) {
-            this.loadWpg(newVal);
-        }
-    }
-
-    async loadWpg(url) {
-        const cvs = this.shadowRoot.getElementById('cvs');
-        const ctx = cvs.getContext('2d');
-        cvs.className = 'preview-mode';
-
-        try {
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const buffer = await resp.arrayBuffer();
-            const bytes = new Uint8Array(buffer);
-
-            // Verify Magic "WPG\x01"
-            if (bytes.length < 16 || bytes[0] !== 0x57 || bytes[1] !== 0x50 || bytes[2] !== 0x47 || bytes[3] !== 0x01) {
-                throw new Error("Invalid WPG file magic");
-            }
-
-            const w = (bytes[4] << 16) | (bytes[5] << 8) | bytes[6];
-            const h = (bytes[7] << 16) | (bytes[8] << 8) | bytes[9];
-            cvs.width = w;
-            cvs.height = h;
-
-            const flags = (bytes[12] << 8) | bytes[13];
-            const hasPreview = (flags & 0x0002) !== 0;
-            const hasGrain = (flags & 0x0004) !== 0;
-
-            // 1. Instant Zero-CLS Micro-Preview (< 0.05 ms)
-            if (hasPreview && bytes.length >= 32) {
-                const p = bytes.subarray(16, 32);
-                const pal = [
-                    [p[0], p[1], p[2]],
-                    [p[3], p[4], p[5]],
-                    [p[6], p[7], p[8]],
-                    [p[9], p[10], p[11]]
-                ];
-                const imgData = ctx.createImageData(4, 4);
-                let bitIdx = 0;
-                for (let i = 0; i < 16; i++) {
-                    const byteVal = p[12 + (bitIdx >> 3)];
-                    const shift = 6 - (bitIdx & 7);
-                    const cIdx = (byteVal >> shift) & 3;
-                    bitIdx += 2;
-                    imgData.data[i * 4] = pal[cIdx][0];
-                    imgData.data[i * 4 + 1] = pal[cIdx][1];
-                    imgData.data[i * 4 + 2] = pal[cIdx][2];
-                    imgData.data[i * 4 + 3] = 255;
-                }
-                if (window.createImageBitmap) {
-                    const bmp = await createImageBitmap(imgData);
-                    ctx.imageSmoothingEnabled = true;
-                    ctx.drawImage(bmp, 0, 0, w, h);
-                }
-            }
-
-            // 2. 100% Client-Side Wasm Decoding (Offline)
-            const wasm = await getWpgWasm();
-            let decodedSuccessfully = false;
-
-            if (wasm && wasm.exports) {
-                try {
-                    const mem = wasm.exports.memory;
-                    const wpgPtr = wasm.exports.wpg_alloc(bytes.length);
-                    new Uint8Array(mem.buffer).set(bytes, wpgPtr);
-
-                    // Allocate pointers for output AVIF bytes and length
-                    const outPtrPtr = wasm.exports.wpg_alloc(4);
-                    const outLenPtr = wasm.exports.wpg_alloc(4);
-
-                    const res = wasm.exports.wpg_wrap_to_avif(wpgPtr, bytes.length, outPtrPtr, outLenPtr);
-                    if (res === 0) {
-                        const view = new DataView(mem.buffer);
-                        const avifPtr = view.getUint32(outPtrPtr, true);
-                        const avifLen = view.getUint32(outLenPtr, true);
-
-                        const avifBytes = new Uint8Array(mem.buffer, avifPtr, avifLen).slice();
-                        const blob = new Blob([avifBytes], { type: 'image/avif' });
-
-                        if (window.createImageBitmap) {
-                            const bmp = await createImageBitmap(blob);
-                            ctx.drawImage(bmp, 0, 0);
-
-                            // Apply deterministic film grain on client if flag set
-                            if (hasGrain) {
-                                let offset = 16 + (hasPreview ? 16 : 0);
-                                if (bytes.length >= offset + 8) {
-                                    const grainScale = bytes[offset];
-                                    const grainSeed = (bytes[offset + 1] << 8) | bytes[offset + 2];
-                                    const imgData = ctx.getImageData(0, 0, w, h);
-                                    const rgbaPtr = wasm.exports.wpg_alloc(imgData.data.length);
-                                    new Uint8Array(mem.buffer).set(imgData.data, rgbaPtr);
-                                    wasm.exports.wpg_apply_film_grain(rgbaPtr, w, h, grainScale, grainSeed);
-                                    imgData.data.set(new Uint8Array(mem.buffer, rgbaPtr, imgData.data.length));
-                                    ctx.putImageData(imgData, 0, 0);
-                                    wasm.exports.wpg_free(rgbaPtr, imgData.data.length);
-                                }
-                            }
-
-                            cvs.className = 'loaded-mode';
-                            decodedSuccessfully = true;
-                        }
-
-                        wasm.exports.wpg_free(avifPtr, avifLen);
-                    }
-
-                    wasm.exports.wpg_free(wpgPtr, bytes.length);
-                    wasm.exports.wpg_free(outPtrPtr, 4);
-                    wasm.exports.wpg_free(outLenPtr, 4);
-                } catch (wasmErr) {
-                    console.warn('WPG Wasm decode error, falling back:', wasmErr);
-                }
-            }
-
-            // 3. Fallback to server decode if Wasm or browser AVIF is unsupported
-            if (!decodedSuccessfully) {
-                const decResp = await fetch('/api/decode', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/octet-stream' },
-                    body: buffer
-                });
-                if (decResp.ok) {
-                    const blob = await decResp.blob();
-                    if (window.createImageBitmap) {
-                        const bmp = await createImageBitmap(blob);
-                        ctx.drawImage(bmp, 0, 0);
-                        cvs.className = 'loaded-mode';
-                    }
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load WPG image:', e);
-        }
-    }
-}
-customElements.define('wpg-img', WpgImageElement);
-"#;
+const WPG_ELEMENT_JS: &str = include_str!("../wpg-element.js");
+const WPG_WORKER_JS: &str = include_str!("../wpg-worker.js");
 
 const HTML_CONTENT: &str = r#"<!DOCTYPE html>
 <html lang="en">
@@ -884,7 +687,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/2.6.0/uicons-regular-rounded/css/uicons-regular-rounded.css">
-  <script src="/wpg-element.js"></script>
+  <script type="module" src="/wpg-element.js"></script>
   <style>
     :root {
       --bg: #090b10;
@@ -1602,9 +1405,15 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
           <p style="font-size: 0.88rem; color: #94a3b8; line-height: 1.5; margin-bottom: 1rem;">
             Add native WPG progressive image rendering to any website. The custom element renders the 16-byte preview immediately for zero layout shift, then smoothly loads the full compressed frame.
           </p>
-          <div style="background: #0d1117; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.9rem 1.1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: #e2e8f0; overflow-x: auto;">
-            <span style="color: #60a5fa;">&lt;script</span> <span style="color: #93c5fd;">src=</span><span style="color: #a7f3d0;">"/wpg-element.js"</span><span style="color: #60a5fa;">&gt;&lt;/script&gt;</span><br>
-            <span style="color: #60a5fa;">&lt;wpg-img</span> <span style="color: #93c5fd;">src=</span><span style="color: #a7f3d0;">"/api/sample.wpg"</span> <span style="color: #93c5fd;">alt=</span><span style="color: #a7f3d0;">"Ultra-compressed WPG"</span> <span style="color: #93c5fd;">style=</span><span style="color: #a7f3d0;">"width: 100%; max-width: 320px; height: 320px;"</span><span style="color: #60a5fa;">&gt;&lt;/wpg-img&gt;</span>
+          <div style="display: flex; gap: 1.25rem; align-items: flex-start; flex-wrap: wrap;">
+            <div style="flex: 1 1 280px; background: #0d1117; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.9rem 1.1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: #e2e8f0; overflow-x: auto;">
+              <span style="color: #60a5fa;">&lt;script</span> <span style="color: #93c5fd;">type=</span><span style="color: #a7f3d0;">"module"</span> <span style="color: #93c5fd;">src=</span><span style="color: #a7f3d0;">"/wpg-element.js"</span><span style="color: #60a5fa;">&gt;&lt;/script&gt;</span><br>
+              <span style="color: #60a5fa;">&lt;wpg-img</span> <span style="color: #93c5fd;">src=</span><span style="color: #a7f3d0;">"/api/sample.wpg"</span> <span style="color: #93c5fd;">alt=</span><span style="color: #a7f3d0;">"Ultra-compressed WPG"</span> <span style="color: #93c5fd;">style=</span><span style="color: #a7f3d0;">"width: 100%; max-width: 320px; height: 320px;"</span><span style="color: #60a5fa;">&gt;&lt;/wpg-img&gt;</span>
+            </div>
+            <div style="flex: 0 0 220px; display: flex; flex-direction: column; gap: 0.75rem;">
+              <wpg-img id="liveWpgPreview" src="/api/sample.wpg" alt="Live WPG Component Preview" width="320" height="240" style="width: 100%; max-width: 220px; height: 165px; border-radius: 10px;"></wpg-img>
+              <button type="button" class="btn btn-primary" id="reloadWpgPreview"><i class="fi fi-rr-refresh"></i> Reload / Test Transition</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1630,6 +1439,13 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
     const grainToggle = document.getElementById('grainToggle');
     const previewToggle = document.getElementById('previewToggle');
     const reEncodeBtn = document.getElementById('reEncodeBtn');
+    const reloadWpgPreview = document.getElementById('reloadWpgPreview');
+    const liveWpgPreview = document.getElementById('liveWpgPreview');
+    if (reloadWpgPreview && liveWpgPreview) {
+      reloadWpgPreview.addEventListener('click', () => {
+        liveWpgPreview.setAttribute('src', '/api/sample.wpg?t=' + Date.now());
+      });
+    }
 
     const compareBox = document.getElementById('compareBox');
     const overlayWrap = document.getElementById('overlayWrap');

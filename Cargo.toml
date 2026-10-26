@@ -40,3 +40,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 webp = "0.3.0"
 avif-serialize = "0.8.9"
+
+[profile.release]
+opt-level = "z"          # Optimize for smallest binary size
+lto = true               # Enable Link-Time Optimization workspace-wide
+codegen-units = 1        # Single codegen unit to maximize LTO
+panic = "abort"          # Remove unwinding boilerplate to shrink Wasm size
+strip = true             # Strip all debug symbols and symbol tables

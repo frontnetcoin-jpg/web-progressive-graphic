@@ -45,7 +45,7 @@
     - [11.2 Largest Contentful Paint (LCP)](#112-largest-contentful-paint-lcp)
     - [11.3 Crawler Indexing & Fallbacks](#113-crawler-indexing--fallbacks)
     - [11.4 Production Case Study (any2prompt.com: 96/100 Mobile PageSpeed)](#114-production-case-study-any2promptcom-96100-mobile-pagespeed)
-    - [11.5 Performance Architecture: Lazy Loading & Script Defer](#115-performance-architecture-lazy-loading--script-defer)
+    - [11.5 Performance Architecture: Lazy Loading & Module Script](#115-performance-architecture-lazy-loading--module-script)
 12. [Local Testing Playground (`playground/`)](#12-local-testing-playground-playground)
 
 ---
@@ -160,7 +160,7 @@ const ctx = canvas.getContext('2d');
 canvas.style.filter = 'blur(20px)';
 canvas.style.transform = 'scale(1.05)'; // eliminates edge blur artifacts
 ```
-This produces an immediate, visually accurate placeholder with **zero layout shifts**.
+This produces an immediate, visually accurate placeholder with **zero layout shifts**. The shipped `<wpg-img>` paints the same 4×4 grid as a blurred SVG data-URI `<img>` and keeps the display canvas at 4×4 until the decoded frame is ready.
 
 ---
 
@@ -306,30 +306,52 @@ println!("Dimensions: {}x{}, Mode: {:?}", header.width, header.height, header.mo
 ```powershell
 .\target\release\wpg.exe serve --port 3000
 ```
-Launches the embedded HTTP server with the interactive split-slider GUI, zoom lens, live parameter controls, and REST API.
+Launches the embedded HTTP server with the interactive split-slider GUI, zoom lens, live parameter controls, REST API, and a live `<wpg-img>` preview. Static client assets are compiled into the binary with `include_str!` / `include_bytes!`, so client or showcase HTML changes require `cargo build --release` before `wpg.exe` serves them.
 
 ---
 
 ## 8. Web Component `<wpg-img>`
 
 ### 8.1 Lifecycle & Progressive Fetch
-The `wpg-element.js` script registers a custom Web Component:
+`wpg-element.js` is an ES module and registers `<wpg-img>`:
+
 ```html
-<script src="http://localhost:3000/wpg-element.js"></script>
-<wpg-img src="sample.wpg" alt="Description"></wpg-img>
+<script type="module" src="http://localhost:3000/wpg-element.js"></script>
+<wpg-img src="/api/sample.wpg" alt="Live WPG Component Preview" width="320" height="240"></wpg-img>
 ```
 
-1. **ConnectedCallback:** Initializes Shadow DOM with an embedded `<canvas>` and an `<img>` tag.
-2. **Phase 1 (Stream Slice 32 Bytes):** Reads the 16-byte header and 16-byte preview block. The canvas renders the 4x4 preview with `filter: blur(20px)` immediately, guaranteeing **0 Cumulative Layout Shift (CLS)**.
-3. **Phase 2 (Payload Stream & Decode):** Streams the full file and calls the decode endpoint or local Wasm worker.
-4. **Phase 3 (Cross-Fade):** Smoothly transitions opacity from canvas to full image.
+The showcase page mounts that element beside the integration snippet. **Reload / Test Transition** assigns `src="/api/sample.wpg?t=<timestamp>"`. The HTTP router strips the query string, so `GET /api/sample.wpg` still serves the sample.
+
+1. **ReadableStream.** `response.body.getReader()` appends chunks until at least 32 bytes have arrived, then copies the header and micro-preview across chunk boundaries. A 16-byte first packet does not paint a partial header.
+2. **Micro-preview.** The 16-byte block becomes a blurred SVG data-URI `<img>`. Declared `width` and `height` set `aspect-ratio`. The `<canvas>` stays 4×4 until the full frame is painted.
+3. **Worker.** `wpg-worker.js` performs Wasm allocation, AVIF wrapping, `createImageBitmap`, and Xorshift32 film grain on an `OffscreenCanvas`. The decoded frame is transferred with `postMessage(message, [bitmap])`. The main thread sends a copy of the file bytes so a worker failure can still fall back.
+4. **Fallbacks.** Worker, then main-thread Wasm, then `POST` to the `fallback-url` attribute (default `/api/decode`). `fallback-url="none"` skips the server. If `createImageBitmap` cannot decode the payload, the client uses an `HTMLImageElement`.
+5. **Lazy recycle.** `loading="lazy"` keeps an `IntersectionObserver` with a `200px` root margin. Outside that margin the in-flight decode is cancelled, the `ImageBitmap` is closed, and the canvas backing store is released. Scrolling back fetches the URL again.
+6. **SSR.** `renderWpgImg()` returns Declarative Shadow DOM markup with the aspect-ratio box and the SVG preview. It does not need a DOM and can run in Node, Next.js, Nuxt, or SvelteKit.
+
+```js
+import { renderWpgImg } from 'wpg-img';
+
+const html = renderWpgImg({
+  src: '/images/hero.wpg',
+  alt: 'Hero',
+  width: 800,
+  height: 600,
+  bytes: fileOr32BytePrefix,
+  loading: 'lazy'
+});
+```
+
+Other attributes: `wasm-url`, `worker-url`, `fallback-url`.
 
 ### 8.2 REST Endpoints
 The `wpg serve` background service exposes:
-- `POST /api/encode`: Accepts multipart image file and query params (`quality`, `speed`, `grain`, `mode`), returns benchmark metrics and encoded `.wpg`.
-- `POST /api/decode`: Accepts raw `.wpg` bytes, returns decoded PNG.
-- `GET /api/sample.wpg`: Serves a reference `.wpg` file.
-- `GET /wpg-element.js`: Serves the Web Component script.
+- `POST /api/encode`: Accepts a JSON body (`image_data`, `quality`, `speed`, `mode`, `subsampling`, `enable_grain`, `enable_preview`) and returns JSON benchmark metrics plus the encoded payload.
+- `POST /api/decode`: Accepts raw `.wpg` bytes and returns a decoded PNG. This is the client fallback endpoint.
+- `GET /api/sample.wpg`: Serves a reference `.wpg` file. A query string such as `?t=` is ignored.
+- `GET /wpg-element.js`: Serves the Web Component module.
+- `GET /wpg-worker.js`: Serves the decode worker.
+- `GET /wpg-decoder.wasm`: Serves the Wasm decoder (about 201 KB, including a pure-Rust Zstd inflater).
 
 ---
 
@@ -352,17 +374,20 @@ To ensure 100% confidence in comparative benchmarks:
 ## 10. Client-Side WebAssembly & NPM Distribution
 
 ### 10.1 WebAssembly Client-Side Decoder (`wpg-decoder.wasm`)
-The `crates/wpg-wasm` crate compiles down to a lightweight 61 KB binary (`wpg-decoder.wasm`) without POSIX/libc dependencies:
+The `crates/wpg-wasm` crate compiles to `wpg-decoder.wasm` (about 201 KB) without POSIX/libc dependencies. Mode 0 still wraps the AV1 OBU as AVIF for the browser decoder. Mode 1, Mode 2, secondary Zstd on a Mode 0 payload, and the alpha plane are inflated inside the module.
 - `wpg_parse_info(ptr, len, out_info)`: Extracts dimensions, mode, and bitflags in < 0.01 ms.
 - `wpg_decode_preview(ptr, len, out_rgba_64)`: Unpacks the 16-byte micro-preview into a 4x4 RGBA buffer.
-- `wpg_wrap_to_avif(ptr, len, out_ptr, out_len)`: Wraps the raw AV1 OBU payload in a minimal ISOBMFF header directly in WebAssembly memory, allowing browsers to invoke native hardware AV1 video decoders via `URL.createObjectURL(new Blob([avifBytes], { type: 'image/avif' }))`.
-- `wpg_apply_film_grain(rgba_ptr, w, h, scale, seed)`: Synthesizes high-frequency noise deterministically in real-time across canvas pixels.
+- `wpg_wrap_to_avif(ptr, len, out_ptr, out_len)`: Wraps a Mode 0 AV1 OBU in a minimal ISOBMFF header. Returns `-5` for palette and modular payloads. A Mode 0 payload with `FLAG_SECONDARY_ENTROPY` is Zstd-inflated first. The returned buffer is an exact-size allocation freed with `wpg_free(ptr, len)`.
+- `wpg_decode_rgba(ptr, len, out_ptr, out_len)`: Decodes Mode 1 and Mode 2 to packed RGBA, including a separate alpha plane when present.
+- `wpg_apply_alpha(rgba_ptr, w, h, wpg_ptr, wpg_len)`: Inflates the alpha block and writes it into an existing RGBA buffer. Offset advances use checked arithmetic.
+- `wpg_apply_film_grain(rgba_ptr, w, h, scale, seed)`: Synthesizes high-frequency noise deterministically across canvas pixels.
 
 ### 10.2 NPM Package (`wpg-img`)
-Located in `packages/wpg-img/`, this package exposes the custom `<wpg-img>` element along with programmatic TypeScript APIs for React, Vue, Svelte, Nuxt, and Next.js:
+Located in `packages/wpg-img/`, this package exposes `<wpg-img>`, `renderWpgImg()`, `decodeWpg()`, and the worker pool for React, Vue, Svelte, Nuxt, and Next.js:
 ```bash
 npm install wpg-img
 ```
+Published files include `dist/index.js`, `dist/wpg-worker.js`, `dist/index.d.ts`, and `wpg-decoder.wasm`. Load the client with `<script type="module">`.
 
 ### 10.3 Standalone Binary Distribution
 - **Windows:** `scripts/install.ps1` downloads and registers `wpg.exe` into user PATH.
@@ -402,17 +427,17 @@ The real-world efficacy of WPG was verified in production on an active AI prompt
 | **First Contentful Paint (FCP)** | 0.8 s | **0.7 s** | **0.7s sub-second paint** |
 | **Largest Contentful Paint (LCP)** | 3.1 s (Red) | **1.8 s** (Green) | **-42% faster contentful paint** |
 
-### 11.5 Performance Architecture: Lazy Loading & Script Defer
+### 11.5 Performance Architecture: Lazy Loading & Module Script
 To achieve consistent 95–100/100 scores in mobile Lighthouse testing:
-1. **Script Deferral:** Always load the WPG decoder bundle non-blockingly via `defer`:
+1. **Module script:** Load the production client as an ES module. Module scripts are deferred by default:
    ```html
-   <script src="/js/wpg-bundle.js" defer></script>
+   <script type="module" src="/wpg-element.js"></script>
    ```
-2. **Native Lazy Loading:** Always specify `loading="lazy"` on below-the-fold assets:
+2. **Native Lazy Loading:** Specify `loading="lazy"` on below-the-fold assets:
    ```html
    <wpg-img src="/images/gallery/portrait.wpg" alt="Portrait" width="300" height="300" loading="lazy"></wpg-img>
    ```
-   The `<wpg-img>` component automatically attaches an internal `IntersectionObserver` with a `200px` root margin to defer network requests until the image nears the viewport.
+   The element keeps an `IntersectionObserver` with a `200px` root margin. The fetch starts as the image approaches the viewport. After it has loaded, leaving that margin closes the `ImageBitmap` and releases the canvas backing store.
 3. **Avoid Inline `background-image` in JS Templates:** When rendering dynamic templates via JavaScript `innerHTML`, do not include redundant `<noscript><div style="background-image:url('legacy.jpg')"></div></noscript>` blocks, as browser CSS engines speculatively initiate background image downloads for inline style declarations.
 
 ---
@@ -424,7 +449,7 @@ A dedicated sandbox environment is available at `playground/`:
 - `playground/output/`: Destination directory for encoded `.wpg` files and decoded PNG verifications.
 - `playground/test-encode.ps1`: Automated 1-click PowerShell runner that encodes, decodes, extracts micro-previews, prints compression savings tables, and runs bitstream benchmarks.
 - `playground/index.html`: Standalone glassmorphic GUI with real-time file inspection, drag-and-drop decoding, and header metadata analysis.
-- `playground/wpg-bundle.js`: Self-contained bundle with embedded base64 WebAssembly for 100% offline testing under the `file:///` protocol without CORS blocks.
+- `playground/wpg-bundle.js`: Older self-contained bundle with embedded base64 WebAssembly for `file:///` testing. It still decodes on the main thread. The production client is `wpg-element.js` plus `wpg-worker.js`.
 
 ---
 
