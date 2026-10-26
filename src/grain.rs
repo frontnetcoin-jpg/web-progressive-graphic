@@ -62,58 +62,71 @@ impl FilmGrainParams {
         })
     }
 
-    /// Analyze an RGBA image and estimate optimal film grain synthesis parameters
+    /// Analyze an RGBA image and estimate optimal film grain synthesis parameters.
+    /// Uses a 2D sign-reversal (local extremum) detector restricted to flat patches
+    /// so smooth gradients and anti-aliased edges are never misclassified as camera noise.
     pub fn estimate_grain(rgba: &[u8], width: u32, height: u32) -> Self {
         if width < 8 || height < 8 || rgba.is_empty() {
             return Self::default();
         }
 
-        // Measure local variance of high-pass residual on luminance
-        let mut residual_sum = 0f64;
-        let mut sample_count = 0u64;
-
         let w = width as usize;
         let h = height as usize;
         let stride = w * 4;
 
-        // Sample interior blocks
-        let step = (w / 128).max(1);
+        let mut flat_count = 0u64;
+        let mut extremum_count = 0u64;
+        let mut residual_sum = 0f64;
+
+        let step = (w / 160).max(1);
         for y in (1..(h - 1)).step_by(step) {
             for x in (1..(w - 1)).step_by(step) {
                 let idx = y * stride + x * 4;
-                let c_r = rgba[idx] as f32;
-                let c_g = rgba[idx + 1] as f32;
-                let c_b = rgba[idx + 2] as f32;
-                let center_y = 0.299 * c_r + 0.587 * c_g + 0.114 * c_b;
+                let left_idx = idx - 4;
+                let right_idx = idx + 4;
+                let up_idx = idx - stride;
+                let down_idx = idx + stride;
 
-                // 4-neighbor average
-                let left_idx = y * stride + (x - 1) * 4;
-                let right_idx = y * stride + (x + 1) * 4;
-                let up_idx = (y - 1) * stride + x * 4;
-                let down_idx = (y + 1) * stride + x * 4;
+                let c_y = 0.2126 * rgba[idx] as f32 + 0.7152 * rgba[idx + 1] as f32 + 0.0722 * rgba[idx + 2] as f32;
+                let l_y = 0.2126 * rgba[left_idx] as f32 + 0.7152 * rgba[left_idx + 1] as f32 + 0.0722 * rgba[left_idx + 2] as f32;
+                let r_y = 0.2126 * rgba[right_idx] as f32 + 0.7152 * rgba[right_idx + 1] as f32 + 0.0722 * rgba[right_idx + 2] as f32;
+                let u_y = 0.2126 * rgba[up_idx] as f32 + 0.7152 * rgba[up_idx + 1] as f32 + 0.0722 * rgba[up_idx + 2] as f32;
+                let d_y = 0.2126 * rgba[down_idx] as f32 + 0.7152 * rgba[down_idx + 1] as f32 + 0.0722 * rgba[down_idx + 2] as f32;
 
-                let l_y = 0.299 * rgba[left_idx] as f32 + 0.587 * rgba[left_idx + 1] as f32 + 0.114 * rgba[left_idx + 2] as f32;
-                let r_y = 0.299 * rgba[right_idx] as f32 + 0.587 * rgba[right_idx + 1] as f32 + 0.114 * rgba[right_idx + 2] as f32;
-                let u_y = 0.299 * rgba[up_idx] as f32 + 0.587 * rgba[up_idx + 1] as f32 + 0.114 * rgba[up_idx + 2] as f32;
-                let d_y = 0.299 * rgba[down_idx] as f32 + 0.587 * rgba[down_idx + 1] as f32 + 0.114 * rgba[down_idx + 2] as f32;
+                // Reject edges and gradients where the outer span changes significantly
+                let span_x = (r_y - l_y).abs();
+                let span_y = (d_y - u_y).abs();
+                if span_x > 8.0 || span_y > 8.0 {
+                    continue;
+                }
 
-                let neighbor_avg = (l_y + r_y + u_y + d_y) * 0.25;
-                let diff = (center_y - neighbor_avg).abs();
+                flat_count += 1;
 
-                // Only consider small high-frequency differences (ignore strong edges > 20)
-                if diff > 0.5 && diff < 16.0 {
-                    residual_sum += diff as f64;
-                    sample_count += 1;
+                // Check if center pixel is a strict 2D local peak or valley (true high-frequency noise)
+                let dl = c_y - l_y;
+                let dr = c_y - r_y;
+                let du = c_y - u_y;
+                let dd = c_y - d_y;
+                if dl * dr > 0.25 && du * dd > 0.25 {
+                    let neighbor_avg = (l_y + r_y + u_y + d_y) * 0.25;
+                    let diff = (c_y - neighbor_avg).abs();
+                    if diff > 0.8 && diff < 14.0 {
+                        extremum_count += 1;
+                        residual_sum += diff as f64;
+                    }
                 }
             }
         }
 
-        if sample_count > 64 {
-            let mean_noise = residual_sum / sample_count as f64;
-            // Map mean noise to scale (e.g. 1.0 noise -> scale ~ 12, 3.0 noise -> scale ~ 36)
-            let scale = (mean_noise * 12.0).clamp(0.0, 64.0) as u8;
-            if scale >= 8 {
-                return Self::new(scale, 1337);
+        // True camera sensor noise causes >= 18% of flat interior pixels to be 2D local extrema
+        if flat_count >= 64 && extremum_count >= 32 {
+            let osc_ratio = extremum_count as f64 / flat_count as f64;
+            if osc_ratio >= 0.18 {
+                let mean_noise = residual_sum / extremum_count as f64;
+                let scale = (mean_noise * 10.0).round().clamp(0.0, 56.0) as u8;
+                if scale >= 10 {
+                    return Self::new(scale, 1337);
+                }
             }
         }
 
@@ -130,9 +143,9 @@ impl FilmGrainParams {
         let w = width as usize;
         let h = height as usize;
         let stride = w * 4;
-        let threshold = (self.grain_scale as f32 * 0.25).max(1.0);
+        let threshold = (self.grain_scale as f32 * 0.24).clamp(1.5, 9.0);
 
-        // Gentle edge-preserving smoothing
+        // Edge-preserving bilateral smoothing on interior pixels
         for y in 1..(h - 1) {
             for x in 1..(w - 1) {
                 let center_idx = y * stride + x * 4;
@@ -143,7 +156,6 @@ impl FilmGrainParams {
                     let u = rgba[center_idx - stride + ch] as f32;
                     let d = rgba[center_idx + stride + ch] as f32;
 
-                    // If neighbors are within noise threshold, average them
                     let mut sum = c;
                     let mut weight = 1.0f32;
                     for &n in &[l, r, u, d] {
@@ -154,7 +166,7 @@ impl FilmGrainParams {
                             weight += w_val;
                         }
                     }
-                    out[center_idx + ch] = (sum / weight).clamp(0.0, 255.0) as u8;
+                    out[center_idx + ch] = (sum / weight).round().clamp(0.0, 255.0) as u8;
                 }
             }
         }
@@ -162,49 +174,46 @@ impl FilmGrainParams {
         out
     }
 
-    /// Synthesize film grain onto decoded image
+    /// Synthesize deterministic Xorshift32 film grain onto decoded image.
+    /// Matches `wpg_apply_film_grain` in `wpg-wasm` and `applyFilmGrainJs` in `wpg-worker.js`.
     pub fn apply_synthesis(&self, rgba: &mut [u8], width: u32, height: u32) {
-        if self.grain_scale == 0 {
+        if self.grain_scale == 0 || width == 0 || height == 0 {
             return;
         }
 
-        let scale = self.grain_scale as f32 / 255.0 * 28.0;
-        let chroma_scale = self.chroma_scale as f32 / 255.0 * 14.0;
-        let mut prng_state = (self.grain_seed as u32).wrapping_mul(1664525).wrapping_add(1013904223);
+        let total_pixels = (width as usize) * (height as usize);
+        let mut prng_state = if self.grain_seed == 0 {
+            0x6d2b_79f5u32
+        } else {
+            (self.grain_seed as u32) | 0x10001
+        };
+        let grain_amplitude = (self.grain_scale as f32) * 0.04;
 
-        let total_pixels = (width * height) as usize;
         for i in 0..total_pixels {
-            let idx = i * 4;
-            if idx + 3 >= rgba.len() {
+            let offset = i * 4;
+            if offset + 3 >= rgba.len() {
                 break;
             }
+            let r = rgba[offset] as f32;
+            let g = rgba[offset + 1] as f32;
+            let b = rgba[offset + 2] as f32;
 
-            // Fast Xorshift PRNG
-            prng_state ^= prng_state << 13;
-            prng_state ^= prng_state >> 17;
-            prng_state ^= prng_state << 5;
-            let rand_luma = ((prng_state & 0x1FF) as i32 - 256) as f32 / 256.0;
+            let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            let norm_y = y / 255.0;
+            let lum_weight = 1.0 - 4.0 * (norm_y - 0.5) * (norm_y - 0.5);
 
-            prng_state ^= prng_state << 13;
-            prng_state ^= prng_state >> 17;
-            prng_state ^= prng_state << 5;
-            let rand_chroma = ((prng_state & 0x1FF) as i32 - 256) as f32 / 256.0;
+            if lum_weight > 0.05 {
+                prng_state ^= prng_state << 13;
+                prng_state ^= prng_state >> 17;
+                prng_state ^= prng_state << 5;
 
-            let cur_r = rgba[idx] as f32;
-            let cur_g = rgba[idx + 1] as f32;
-            let cur_b = rgba[idx + 2] as f32;
-            let luma = 0.299 * cur_r + 0.587 * cur_g + 0.114 * cur_b;
+                let rand_val = ((prng_state & 0xFFFF) as f32 / 32768.0) - 1.0;
+                let noise = rand_val * grain_amplitude * lum_weight;
 
-            // Perceptual grain modulation: grain is visible in midtones, less in extreme darks/whites
-            let luma_norm = luma / 255.0;
-            let weight = (luma_norm * (1.0 - luma_norm) * 4.0).clamp(0.2, 1.0);
-
-            let luma_noise = rand_luma * scale * weight;
-            let chroma_noise = rand_chroma * chroma_scale * weight;
-
-            rgba[idx] = (cur_r + luma_noise + chroma_noise).clamp(0.0, 255.0) as u8;
-            rgba[idx + 1] = (cur_g + luma_noise).clamp(0.0, 255.0) as u8;
-            rgba[idx + 2] = (cur_b + luma_noise - chroma_noise).clamp(0.0, 255.0) as u8;
+                rgba[offset] = (r + noise).round().clamp(0.0, 255.0) as u8;
+                rgba[offset + 1] = (g + noise).round().clamp(0.0, 255.0) as u8;
+                rgba[offset + 2] = (b + noise).round().clamp(0.0, 255.0) as u8;
+            }
         }
     }
 }

@@ -64,8 +64,8 @@ impl PaletteCodec {
 
         uncompressed.write_all(&rle_stream).ok()?;
 
-        // Secondary entropy super-compression with Zstandard level 19
-        zstd::bulk::compress(&uncompressed, 19).ok()
+        // Secondary entropy super-compression with Zstandard level 12
+        zstd::bulk::compress(&uncompressed, 12).ok()
     }
 
     pub fn decode(compressed: &[u8], width: u32, height: u32) -> io::Result<Vec<u8>> {

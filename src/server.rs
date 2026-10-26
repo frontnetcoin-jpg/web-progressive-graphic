@@ -150,11 +150,11 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
             }
         }
     } else if is_get_or_head && *path == "/wpg-element.js" {
-        send_response(stream, "application/javascript; charset=utf-8", WPG_ELEMENT_JS.as_bytes())?;
+        send_response_cached(stream, "application/javascript; charset=utf-8", WPG_ELEMENT_JS.as_bytes())?;
     } else if is_get_or_head && *path == "/wpg-worker.js" {
-        send_response(stream, "application/javascript; charset=utf-8", WPG_WORKER_JS.as_bytes())?;
+        send_response_cached(stream, "application/javascript; charset=utf-8", WPG_WORKER_JS.as_bytes())?;
     } else if is_get_or_head && *path == "/wpg-decoder.wasm" {
-        send_response(stream, "application/wasm", WPG_DECODER_WASM)?;
+        send_response_cached(stream, "application/wasm", WPG_DECODER_WASM)?;
     } else if is_get_or_head && *path == "/api/sample.wpg" {
         match generate_sample_wpg() {
             Ok(wpg_bytes) => {
@@ -214,6 +214,18 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
 
 fn send_response(stream: &mut TcpStream, content_type: &str, body: &[u8]) -> std::io::Result<()> {
     send_response_status(stream, 200, "OK", content_type, body)
+}
+
+fn send_response_cached(stream: &mut TcpStream, content_type: &str, body: &[u8]) -> std::io::Result<()> {
+    let header = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: public, max-age=31536000, immutable\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n",
+        content_type,
+        body.len()
+    );
+    stream.write_all(header.as_bytes())?;
+    stream.write_all(body)?;
+    stream.flush()?;
+    Ok(())
 }
 
 fn send_response_status(

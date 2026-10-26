@@ -203,7 +203,15 @@ pub unsafe extern "C" fn wpg_wrap_to_avif(
         Err(code) => return code,
     };
 
-    let aviffy = avif_serialize::Aviffy::new();
+    let mut aviffy = avif_serialize::Aviffy::new();
+    let subsampling = data[11];
+    let sub_xy = match subsampling {
+        0 => (true, true),
+        1 => (true, false),
+        _ => (false, false),
+    };
+    aviffy.set_chroma_subsampling(sub_xy);
+    aviffy.set_seq_profile(0);
     let mut avif_file = aviffy.to_vec(&obu, None, located.width, located.height, 8);
     // Drop spare capacity before the Vec is freed normally. The pointer handed to JS
     // is a fresh exact-size allocation, so `wpg_free(ptr, len)` matches the allocator.
@@ -332,7 +340,7 @@ pub unsafe extern "C" fn wpg_apply_film_grain(
     let data = std::slice::from_raw_parts_mut(rgba_ptr, total_pixels * 4);
 
     let mut prng_state = if seed == 0 { 0x6d2b79f5 } else { (seed as u32) | 0x10001 };
-    let grain_amplitude = (scale as f32) * 0.18;
+    let grain_amplitude = (scale as f32) * 0.04;
 
     for i in 0..total_pixels {
         let offset = i * 4;
@@ -352,9 +360,9 @@ pub unsafe extern "C" fn wpg_apply_film_grain(
             let rand_val = ((prng_state & 0xFFFF) as f32 / 32768.0) - 1.0;
             let noise = rand_val * grain_amplitude * lum_weight;
 
-            data[offset] = (r + noise).clamp(0.0, 255.0) as u8;
-            data[offset + 1] = (g + noise).clamp(0.0, 255.0) as u8;
-            data[offset + 2] = (b + noise).clamp(0.0, 255.0) as u8;
+            data[offset] = (r + noise).round().clamp(0.0, 255.0) as u8;
+            data[offset + 1] = (g + noise).round().clamp(0.0, 255.0) as u8;
+            data[offset + 2] = (b + noise).round().clamp(0.0, 255.0) as u8;
         }
     }
 
@@ -491,5 +499,29 @@ mod tests {
         assert_eq!(rgba[7], 128);
         assert_eq!(rgba[11], 255);
         assert_eq!(rgba[0], 255);
+    }
+
+    #[test]
+    fn avif_header_template_matches_aviffy() {
+        let mut file = header(0, 0, 320, 240);
+        file[11] = 0; // YUV 4:2:0
+        file.extend_from_slice(&[0x12, 0x00, 0x0A, 0x0B]);
+        let mut out_ptr = std::ptr::null_mut();
+        let mut out_len = 0usize;
+        let code = unsafe {
+            wpg_wrap_to_avif(file.as_ptr(), file.len(), &mut out_ptr, &mut out_len)
+        };
+        assert_eq!(code, 0);
+        assert_eq!(out_len, 242 + 4);
+        let avif = unsafe { std::slice::from_raw_parts(out_ptr, out_len) };
+        assert_eq!(&avif[109..113], &(4u32).to_be_bytes());
+        assert_eq!(&avif[176..180], &(320u32).to_be_bytes());
+        assert_eq!(&avif[180..184], &(240u32).to_be_bytes());
+        assert_eq!(avif[193], 0x1F);
+        assert_eq!(avif[194], 0x0C);
+        assert_eq!(&avif[234..238], &(12u32).to_be_bytes());
+        assert_eq!(&avif[238..242], b"mdat");
+        assert_eq!(&avif[242..246], &[0x12, 0x00, 0x0A, 0x0B]);
+        unsafe { wpg_free(out_ptr, out_len) };
     }
 }

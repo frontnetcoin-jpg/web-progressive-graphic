@@ -100,19 +100,92 @@ const INLINE_WORKER_CODE = `
 /**
  * WPG (Web Progressive Graphic) Dedicated Web Worker Decoder
  *
- * Offloads Wasm allocation, AVIF wrapping, palette/modular decode, alpha merge,
- * and Xorshift32 film grain off the main thread. The finished frame is transferred
- * back as an ImageBitmap.
+ * Offloads AVIF wrapping, palette/modular decode, alpha merge, and Xorshift32
+ * film grain off the main thread. Standard Mode 0 images decode via a 0-KB Wasm
+ * pure-JS ISOBMFF fast path; Wasm (~130 KB) is lazy-loaded only when needed for
+ * Mode 1 (Palette), Mode 2 (Modular), FLAG_ALPHA, or FLAG_SECONDARY_ENTROPY.
  */
 
 let wasmInstance = null;
 let wasmLoadingPromise = null;
 
-/**
- * Instantiates and caches the WPG WebAssembly decoder module.
- * @param {string} [wasmUrl]
- * @returns {Promise<WebAssembly.Instance|null>}
- */
+// 242-byte ISOBMFF AVIF header template (ftyp + meta + mdat head) matching avif-serialize
+const AVIF_HEADER_TEMPLATE = new Uint8Array([
+    0x00,0x00,0x00,0x18, 0x66,0x74,0x79,0x70, 0x61,0x76,0x69,0x66, 0x00,0x00,0x00,0x00, 0x6d,0x69,0x66,0x31, 0x6d,0x69,0x61,0x66,
+    0x00,0x00,0x00,0xd2, 0x6d,0x65,0x74,0x61, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x21, 0x68,0x64,0x6c,0x72, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00, 0x70,0x69,0x63,0x74, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00, 0x00,
+    0x00,0x00,0x00,0x0e, 0x70,0x69,0x74,0x6d, 0x00,0x00,0x00,0x00, 0x00,0x01,
+    0x00,0x00,0x00,0x1e, 0x69,0x6c,0x6f,0x63, 0x00,0x00,0x00,0x00, 0x44,0x00, 0x00,0x01, 0x00,0x01, 0x00,0x00, 0x00,0x01, 0x00,0x00,0x00,0xf2, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x23, 0x69,0x69,0x6e,0x66, 0x00,0x00,0x00,0x00, 0x00,0x01, 0x00,0x00,0x00,0x15, 0x69,0x6e,0x66,0x65, 0x02,0x00,0x00,0x00, 0x00,0x01, 0x00,0x00, 0x61,0x76,0x30,0x31, 0x00,
+    0x00,0x00,0x00,0x56, 0x69,0x70,0x72,0x70,
+    0x00,0x00,0x00,0x38, 0x69,0x70,0x63,0x6f,
+    0x00,0x00,0x00,0x14, 0x69,0x73,0x70,0x65, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x0c, 0x61,0x76,0x31,0x43, 0x81,0x1f,0x0c,0x00,
+    0x00,0x00,0x00,0x10, 0x70,0x69,0x78,0x69, 0x00,0x00,0x00,0x00, 0x03,0x08,0x08,0x08,
+    0x00,0x00,0x00,0x16, 0x69,0x70,0x6d,0x61, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x01, 0x00,0x01,0x03,0x01,0x82,0x03,
+    0x00,0x00,0x00,0x08, 0x6d,0x64,0x61,0x74
+]);
+
+function wrapWpgMode0ToAvifJs(bytes) {
+    if (bytes.length < 16) return null;
+    const mode = bytes[10];
+    const subsampling = bytes[11];
+    const flags = (bytes[12] << 8) | bytes[13];
+    if (mode !== 0 || (flags & 0x0009) !== 0) return null;
+
+    const width = (bytes[4] << 16) | (bytes[5] << 8) | bytes[6];
+    const height = (bytes[7] << 16) | (bytes[8] << 8) | bytes[9];
+    if (width === 0 || height === 0) return null;
+
+    let offset = 16;
+    if ((flags & 0x0002) !== 0) offset += 16;
+    if ((flags & 0x0004) !== 0) offset += 8;
+    if (offset >= bytes.length) return null;
+
+    const obu = bytes.subarray(offset);
+    const obuLen = obu.length;
+    const out = new Uint8Array(242 + obuLen);
+    out.set(AVIF_HEADER_TEMPLATE, 0);
+    out.set(obu, 242);
+
+    const view = new DataView(out.buffer);
+    view.setUint32(109, obuLen, false);
+    view.setUint32(176, width, false);
+    view.setUint32(180, height, false);
+    out[193] = (subsampling >= 2) ? 0x3f : 0x1f;
+    out[194] = (subsampling === 0) ? 0x0c : ((subsampling === 1) ? 0x08 : 0x00);
+    view.setUint32(234, 8 + obuLen, false);
+    return out;
+}
+
+function applyFilmGrainJs(data, width, height, scale, seed) {
+    if (!scale || width === 0 || height === 0) return;
+    const totalPixels = width * height;
+    let prng = (seed === 0 ? 0x6d2b79f5 : ((seed | 0x10001) >>> 0)) >>> 0;
+    const amp = scale * 0.04;
+
+    for (let i = 0; i < totalPixels; i++) {
+        const off = i * 4;
+        const r = data[off];
+        const g = data[off + 1];
+        const b = data[off + 2];
+        const normY = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+        const d = normY - 0.5;
+        const lumWeight = 1.0 - 4.0 * d * d;
+        if (lumWeight > 0.05) {
+            prng ^= (prng << 13) >>> 0;
+            prng ^= (prng >>> 17) >>> 0;
+            prng ^= (prng << 5) >>> 0;
+            prng = prng >>> 0;
+            const randVal = ((prng & 0xffff) / 32768.0) - 1.0;
+            const noise = randVal * amp * lumWeight;
+            data[off] = Math.min(255, Math.max(0, Math.round(r + noise)));
+            data[off + 1] = Math.min(255, Math.max(0, Math.round(g + noise)));
+            data[off + 2] = Math.min(255, Math.max(0, Math.round(b + noise)));
+        }
+    }
+}
+
 async function getWorkerWasm(wasmUrl = '/wpg-decoder.wasm') {
     if (wasmInstance) return wasmInstance;
     if (wasmLoadingPromise) return wasmLoadingPromise;
@@ -154,10 +227,6 @@ function bitmapFromRgba(rgba, width, height) {
     return canvas.transferToImageBitmap();
 }
 
-/**
- * Merge FLAG_ALPHA and film grain into a bitmap. The source bytes stay on the JS heap.
- * @returns {ImageBitmap}
- */
 function postProcessBitmap(bitmap, bytes, wasm, width, height, flags, previewPresent) {
     const hasAlpha = (flags & 0x0001) !== 0;
     const hasGrain = (flags & 0x0004) !== 0;
@@ -166,12 +235,24 @@ function postProcessBitmap(bitmap, bytes, wasm, width, height, flags, previewPre
         throw new Error('OffscreenCanvas is required to apply alpha or film grain');
     }
 
+    const offset = 16 + (previewPresent ? 16 : 0);
+    const grainScale = (hasGrain && bytes.length >= offset + 3) ? bytes[offset] : 0;
+    const grainSeed = (hasGrain && bytes.length >= offset + 3) ? ((bytes[offset + 1] << 8) | bytes[offset + 2]) : 0;
+    if (!hasAlpha && grainScale === 0) return bitmap;
+
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(bitmap, 0, 0);
     if (typeof bitmap.close === 'function') bitmap.close();
 
     const imgData = ctx.getImageData(0, 0, width, height);
+
+    if (!hasAlpha && (!wasm || !wasm.exports)) {
+        applyFilmGrainJs(imgData.data, width, height, grainScale, grainSeed);
+        ctx.putImageData(imgData, 0, 0);
+        return canvas.transferToImageBitmap();
+    }
+
     const rgbaLen = imgData.data.length;
     const rgbaPtr = wasm.exports.wpg_alloc(rgbaLen);
     let wpgPtr = 0;
@@ -183,13 +264,8 @@ function postProcessBitmap(bitmap, bytes, wasm, width, height, flags, previewPre
             const alphaCode = wasm.exports.wpg_apply_alpha(rgbaPtr, width, height, wpgPtr, bytes.length);
             if (alphaCode !== 0) throw new Error('wpg_apply_alpha failed with code ' + alphaCode);
         }
-        if (hasGrain) {
-            const offset = 16 + (previewPresent ? 16 : 0);
-            if (bytes.length >= offset + 3 && bytes[offset] > 0) {
-                const grainScale = bytes[offset];
-                const grainSeed = (bytes[offset + 1] << 8) | bytes[offset + 2];
-                wasm.exports.wpg_apply_film_grain(rgbaPtr, width, height, grainScale, grainSeed);
-            }
+        if (grainScale > 0) {
+            wasm.exports.wpg_apply_film_grain(rgbaPtr, width, height, grainScale, grainSeed);
         }
         imgData.data.set(new Uint8Array(wasm.exports.memory.buffer, rgbaPtr, rgbaLen));
     } finally {
@@ -225,6 +301,21 @@ self.onmessage = async function(e) {
         const shouldApplyGrain = hasGrain !== undefined ? hasGrain : ((imgFlags & 0x0004) !== 0);
         const previewPresent = hasPreview !== undefined ? hasPreview : ((imgFlags & 0x0002) !== 0);
         const grainFlags = shouldApplyGrain ? (imgFlags | 0x0004) : (imgFlags & ~0x0004);
+
+        const fastAvifBytes = wrapWpgMode0ToAvifJs(bytes);
+        if (fastAvifBytes) {
+            const avifBlob = new Blob([fastAvifBytes], { type: 'image/avif' });
+            let bitmap = await createImageBitmap(avifBlob);
+            bitmap = postProcessBitmap(bitmap, bytes, wasmInstance, imgWidth, imgHeight, grainFlags, previewPresent);
+            self.postMessage({
+                type: 'DECODED',
+                id,
+                bitmap,
+                width: imgWidth,
+                height: imgHeight
+            }, [bitmap]);
+            return;
+        }
 
         const wasm = await getWorkerWasm(wasmUrl || '/wpg-decoder.wasm');
         if (!wasm || !wasm.exports) {
@@ -694,16 +785,108 @@ export function renderWpgImg(options = {}) {
     return `<wpg-img ${attrs}><template shadowrootmode="open"><style>${WPG_SHADOW_STYLE}${hostAspect}</style>${previewImg}<canvas id="cvs" width="4" height="4"></canvas></template></wpg-img>`;
 }
 
+// 242-byte ISOBMFF AVIF header template (ftyp + meta + mdat head) matching avif-serialize
+const AVIF_HEADER_TEMPLATE = new Uint8Array([
+    0x00,0x00,0x00,0x18, 0x66,0x74,0x79,0x70, 0x61,0x76,0x69,0x66, 0x00,0x00,0x00,0x00, 0x6d,0x69,0x66,0x31, 0x6d,0x69,0x61,0x66,
+    0x00,0x00,0x00,0xd2, 0x6d,0x65,0x74,0x61, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x21, 0x68,0x64,0x6c,0x72, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00, 0x70,0x69,0x63,0x74, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00, 0x00,
+    0x00,0x00,0x00,0x0e, 0x70,0x69,0x74,0x6d, 0x00,0x00,0x00,0x00, 0x00,0x01,
+    0x00,0x00,0x00,0x1e, 0x69,0x6c,0x6f,0x63, 0x00,0x00,0x00,0x00, 0x44,0x00, 0x00,0x01, 0x00,0x01, 0x00,0x00, 0x00,0x01, 0x00,0x00,0x00,0xf2, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x23, 0x69,0x69,0x6e,0x66, 0x00,0x00,0x00,0x00, 0x00,0x01, 0x00,0x00,0x00,0x15, 0x69,0x6e,0x66,0x65, 0x02,0x00,0x00,0x00, 0x00,0x01, 0x00,0x00, 0x61,0x76,0x30,0x31, 0x00,
+    0x00,0x00,0x00,0x56, 0x69,0x70,0x72,0x70,
+    0x00,0x00,0x00,0x38, 0x69,0x70,0x63,0x6f,
+    0x00,0x00,0x00,0x14, 0x69,0x73,0x70,0x65, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x0c, 0x61,0x76,0x31,0x43, 0x81,0x1f,0x0c,0x00,
+    0x00,0x00,0x00,0x10, 0x70,0x69,0x78,0x69, 0x00,0x00,0x00,0x00, 0x03,0x08,0x08,0x08,
+    0x00,0x00,0x00,0x16, 0x69,0x70,0x6d,0x61, 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x01, 0x00,0x01,0x03,0x01,0x82,0x03,
+    0x00,0x00,0x00,0x08, 0x6d,0x64,0x61,0x74
+]);
+
+/**
+ * Pure-JS 0-KB Wasm fast path for Mode 0 WPG images without Zstd or separate alpha.
+ * @param {Uint8Array} bytes
+ * @returns {Uint8Array|null}
+ */
+function wrapWpgMode0ToAvifJs(bytes) {
+    if (bytes.length < 16) return null;
+    const mode = bytes[10];
+    const subsampling = bytes[11];
+    const flags = (bytes[12] << 8) | bytes[13];
+    if (mode !== 0 || (flags & 0x0009) !== 0) return null;
+
+    const width = (bytes[4] << 16) | (bytes[5] << 8) | bytes[6];
+    const height = (bytes[7] << 16) | (bytes[8] << 8) | bytes[9];
+    if (width === 0 || height === 0) return null;
+
+    let offset = 16;
+    if ((flags & 0x0002) !== 0) offset += 16;
+    if ((flags & 0x0004) !== 0) offset += 8;
+    if (offset >= bytes.length) return null;
+
+    const obu = bytes.subarray(offset);
+    const obuLen = obu.length;
+    const out = new Uint8Array(242 + obuLen);
+    out.set(AVIF_HEADER_TEMPLATE, 0);
+    out.set(obu, 242);
+
+    const view = new DataView(out.buffer);
+    view.setUint32(109, obuLen, false);
+    view.setUint32(176, width, false);
+    view.setUint32(180, height, false);
+    out[193] = (subsampling >= 2) ? 0x3f : 0x1f;
+    out[194] = (subsampling === 0) ? 0x0c : ((subsampling === 1) ? 0x08 : 0x00);
+    view.setUint32(234, 8 + obuLen, false);
+    return out;
+}
+
+/**
+ * Pure-JS deterministic Xorshift32 film grain synthesis.
+ * @param {Uint8ClampedArray} data
+ * @param {number} width
+ * @param {number} height
+ * @param {number} scale
+ * @param {number} seed
+ */
+function applyFilmGrainJs(data, width, height, scale, seed) {
+    if (!scale || width === 0 || height === 0) return;
+    const totalPixels = width * height;
+    let prng = (seed === 0 ? 0x6d2b79f5 : ((seed | 0x10001) >>> 0)) >>> 0;
+    const amp = scale * 0.04;
+
+    for (let i = 0; i < totalPixels; i++) {
+        const off = i * 4;
+        const r = data[off];
+        const g = data[off + 1];
+        const b = data[off + 2];
+        const normY = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+        const d = normY - 0.5;
+        const lumWeight = 1.0 - 4.0 * d * d;
+        if (lumWeight > 0.05) {
+            prng ^= (prng << 13) >>> 0;
+            prng ^= (prng >>> 17) >>> 0;
+            prng ^= (prng << 5) >>> 0;
+            prng = prng >>> 0;
+            const randVal = ((prng & 0xffff) / 32768.0) - 1.0;
+            const noise = randVal * amp * lumWeight;
+            data[off] = Math.min(255, Math.max(0, Math.round(r + noise)));
+            data[off + 1] = Math.min(255, Math.max(0, Math.round(g + noise)));
+            data[off + 2] = Math.min(255, Math.max(0, Math.round(b + noise)));
+        }
+    }
+}
+
 /**
  * Decode a WPG buffer with Wasm.
  * Mode 0 returns AVIF bytes. Mode 1 and 2 return packed RGBA.
  * `-5` from the wrapper selects the lossless decoder. Any other failure returns null
  * so the caller can use the server fallback.
- * @param {WebAssembly.Instance} wasm
+ * @param {WebAssembly.Instance|null} wasm
  * @param {Uint8Array} bytes
  * @returns {{ kind: 'avif'|'rgba', bytes: Uint8Array }|null}
  */
 function decodeWpgWithWasm(wasm, bytes) {
+    const fastAvif = wrapWpgMode0ToAvifJs(bytes);
+    if (fastAvif) return { kind: 'avif', bytes: fastAvif };
     const exports = wasm && wasm.exports;
     if (!exports || typeof exports.wpg_alloc !== 'function') return null;
     let wpgPtr = 0;
@@ -1048,7 +1231,7 @@ export class WpgImageElement extends WpgHtmlElement {
         const offset = 16 + (hasPreview ? 16 : 0);
         const grainScale = bytes.length >= offset + 1 ? bytes[offset] : 0;
         const grainSeed = bytes.length >= offset + 3 ? ((bytes[offset + 1] << 8) | bytes[offset + 2]) : 0;
-        if (!this._cvs || !this._ctx || !wasm.exports) return false;
+        if (!this._cvs || !this._ctx) return false;
 
         try {
             this._cvs.width = w;
@@ -1061,6 +1244,14 @@ export class WpgImageElement extends WpgHtmlElement {
 
         try {
             const imgData = this._ctx.getImageData(0, 0, w, h);
+            if (!hasAlpha && (!wasm || !wasm.exports)) {
+                applyFilmGrainJs(imgData.data, w, h, grainScale, grainSeed);
+                if (gen !== this._loadGen) return true;
+                this._ctx.putImageData(imgData, 0, 0);
+                this._markLoaded();
+                return true;
+            }
+            if (!wasm || !wasm.exports) return false;
             const rgbaLen = imgData.data.length;
             const rgbaPtr = wasm.exports.wpg_alloc(rgbaLen);
             let wpgPtr = 0;
@@ -1225,12 +1416,13 @@ export class WpgImageElement extends WpgHtmlElement {
                 }
             }
 
-            // 3. Fallback: Main-thread Wasm decode. `bytes` is still intact; the worker received a copy.
+            // 3. Fallback: Main-thread JS/Wasm decode. `bytes` is still intact; the worker received a copy.
             if (!decodedSuccessfully && this._alive(gen, signal)) {
                 try {
-                    const wasm = await getWpgWasm(wasmUrl);
+                    const fastAvif = wrapWpgMode0ToAvifJs(bytes);
+                    const wasm = fastAvif ? null : await getWpgWasm(wasmUrl);
                     if (!this._alive(gen, signal)) return;
-                    const decoded = wasm ? decodeWpgWithWasm(wasm, bytes) : null;
+                    const decoded = fastAvif ? { kind: 'avif', bytes: fastAvif } : (wasm ? decodeWpgWithWasm(wasm, bytes) : null);
                     if (decoded && decoded.kind === 'rgba') {
                         if (this._paintRgba(wasm, decoded.bytes, bytes, parsedW, parsedH, parsedHasPreview, parsedHasGrain, gen)) {
                             decodedSuccessfully = true;
@@ -1245,7 +1437,7 @@ export class WpgImageElement extends WpgHtmlElement {
                         if (!drawable) throw new Error('AVIF decode produced no image');
 
                         const hasAlpha = (parsedFlags & 0x0001) !== 0;
-                        if ((parsedHasGrain || hasAlpha) && wasm) {
+                        if (parsedHasGrain || hasAlpha) {
                             const painted = this._applyMainThreadPixels(wasm, bytes, drawable, parsedW, parsedH, parsedHasPreview, hasAlpha, gen);
                             if (painted) decodedSuccessfully = true;
                             else throw new Error('Alpha or film grain post-process failed');
@@ -1375,6 +1567,11 @@ export async function decodeWpg(inputBuffer, options = {}) {
             ctx.putImageData(imgData, 0, 0);
             previewBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         }
+    }
+
+    const fastAvif = wrapWpgMode0ToAvifJs(bytes);
+    if (fastAvif) {
+        return { blob: new Blob([fastAvif], { type: 'image/avif' }), width, height, previewBlob };
     }
 
     const wasm = await getWpgWasm(options.wasmUrl || DEFAULT_WASM_URL);

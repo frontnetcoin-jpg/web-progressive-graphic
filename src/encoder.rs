@@ -34,7 +34,7 @@ impl Default for EncodeOptions {
             enable_grain: true,
             grain_scale: None,
             secondary_entropy: true,
-            tune_ssim: false,
+            tune_ssim: true,
         }
     }
 }
@@ -49,24 +49,27 @@ impl WpgEncoder {
 
         let has_alpha = rgba.chunks_exact(4).any(|px| px[3] < 255);
 
+        // Compute palette encoding at most once and reuse the encoded buffer
+        let mut cached_palette = if options.mode.is_none() || options.mode == Some(WpgMode::PaletteLossless) {
+            PaletteCodec::encode(rgba, width, height)
+        } else {
+            None
+        };
+
         // Auto mode selection if not specified
         let selected_mode = match options.mode {
             Some(m) => m,
             None => {
-                // If quality is 100, try palette then modular lossless
                 if options.quality == 100 {
-                    if let Some(_) = PaletteCodec::encode(rgba, width, height) {
+                    if cached_palette.is_some() {
                         WpgMode::PaletteLossless
                     } else {
                         WpgMode::ModularLossless
                     }
+                } else if cached_palette.is_some() {
+                    WpgMode::PaletteLossless
                 } else {
-                    // Check if image has <= 256 colors (e.g. flat graphic, logo)
-                    if let Some(_) = PaletteCodec::encode(rgba, width, height) {
-                        WpgMode::PaletteLossless
-                    } else {
-                        WpgMode::Av1Enhanced
-                    }
+                    WpgMode::Av1Enhanced
                 }
             }
         };
@@ -127,7 +130,7 @@ impl WpgEncoder {
         // Encode Main Image Payload based on selected mode
         let payload: Vec<u8> = match selected_mode {
             WpgMode::PaletteLossless => {
-                if let Some(data) = PaletteCodec::encode(rgba, width, height) {
+                if let Some(data) = cached_palette.take() {
                     data
                 } else {
                     // Fallback to Modular Lossless
@@ -157,10 +160,11 @@ impl WpgEncoder {
                     options.tune_ssim,
                 )?;
 
-                // Test secondary entropy super-compression on OBU
-                if options.secondary_entropy {
-                    if let Ok(compressed) = zstd::bulk::compress(&raw_obu, 7) {
-                        if compressed.len() + 4 < raw_obu.len() {
+                // Only apply secondary Zstd entropy on Mode 0 when it achieves meaningful savings (>= 256B and >= 8%),
+                // keeping standard Mode 0 streams directly decodable via the 0-KB Wasm pure-JS fast path.
+                if options.secondary_entropy && raw_obu.len() >= 1024 {
+                    if let Ok(compressed) = zstd::bulk::compress(&raw_obu, 5) {
+                        if compressed.len() + 256 < raw_obu.len() && compressed.len() * 100 < raw_obu.len() * 92 {
                             header.flags |= FLAG_SECONDARY_ENTROPY;
                             compressed
                         } else {
