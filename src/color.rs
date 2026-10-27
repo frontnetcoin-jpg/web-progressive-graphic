@@ -15,7 +15,7 @@ pub struct YuvPlanes {
     pub subsampling: ColorSubsampling,
 }
 
-/// Convert sRGB RGBA buffer to YUV planes
+/// Convert sRGB RGBA buffer to full-range BT.709 YUV planes with unbiased rounding
 pub fn rgb_to_yuv(rgba: &[u8], width: usize, height: usize, subsampling: ColorSubsampling) -> YuvPlanes {
     let y_width = width;
     let y_height = height;
@@ -30,17 +30,17 @@ pub fn rgb_to_yuv(rgba: &[u8], width: usize, height: usize, subsampling: ColorSu
     let mut u_plane = vec![0u8; uv_width * uv_height];
     let mut v_plane = vec![0u8; uv_width * uv_height];
 
-    // Compute full Y plane
+    // Compute full Y plane (BT.709 full range)
     for y in 0..height {
+        let row_offset = y * width;
         for x in 0..width {
-            let idx = (y * width + x) * 4;
+            let idx = (row_offset + x) * 4;
             let r = rgba[idx] as f32;
             let g = rgba[idx + 1] as f32;
             let b = rgba[idx + 2] as f32;
 
-            // BT.709
-            let y_val = (0.2126 * r + 0.7152 * g + 0.0722 * b).clamp(0.0, 255.0) as u8;
-            y_plane[y * y_width + x] = y_val;
+            let y_val = (0.2126 * r + 0.7152 * g + 0.0722 * b).round().clamp(0.0, 255.0) as u8;
+            y_plane[row_offset + x] = y_val;
         }
     }
 
@@ -68,8 +68,8 @@ pub fn rgb_to_yuv(rgba: &[u8], width: usize, height: usize, subsampling: ColorSu
                             let g = rgba[idx + 1] as f32;
                             let b = rgba[idx + 2] as f32;
 
-                            let u_val = (-0.1146 * r - 0.3854 * g + 0.5000 * b) + 128.0;
-                            let v_val = (0.5000 * r - 0.4542 * g - 0.0458 * b) + 128.0;
+                            let u_val = (-0.114572 * r - 0.385428 * g + 0.500000 * b) + 128.0;
+                            let v_val = (0.500000 * r - 0.454153 * g - 0.045847 * b) + 128.0;
 
                             u_acc += u_val;
                             v_acc += v_val;
@@ -78,8 +78,8 @@ pub fn rgb_to_yuv(rgba: &[u8], width: usize, height: usize, subsampling: ColorSu
                     }
 
                     if count > 0.0 {
-                        u_plane[uy * uv_width + ux] = (u_acc / count).clamp(0.0, 255.0) as u8;
-                        v_plane[uy * uv_width + ux] = (v_acc / count).clamp(0.0, 255.0) as u8;
+                        u_plane[uy * uv_width + ux] = (u_acc / count).round().clamp(0.0, 255.0) as u8;
+                        v_plane[uy * uv_width + ux] = (v_acc / count).round().clamp(0.0, 255.0) as u8;
                     }
                 }
             }
@@ -101,8 +101,8 @@ pub fn rgb_to_yuv(rgba: &[u8], width: usize, height: usize, subsampling: ColorSu
                         let g = rgba[idx + 1] as f32;
                         let b = rgba[idx + 2] as f32;
 
-                        let u_val = (-0.1146 * r - 0.3854 * g + 0.5000 * b) + 128.0;
-                        let v_val = (0.5000 * r - 0.4542 * g - 0.0458 * b) + 128.0;
+                        let u_val = (-0.114572 * r - 0.385428 * g + 0.500000 * b) + 128.0;
+                        let v_val = (0.500000 * r - 0.454153 * g - 0.045847 * b) + 128.0;
 
                         u_acc += u_val;
                         v_acc += v_val;
@@ -110,8 +110,8 @@ pub fn rgb_to_yuv(rgba: &[u8], width: usize, height: usize, subsampling: ColorSu
                     }
 
                     if count > 0.0 {
-                        u_plane[y * uv_width + ux] = (u_acc / count).clamp(0.0, 255.0) as u8;
-                        v_plane[y * uv_width + ux] = (v_acc / count).clamp(0.0, 255.0) as u8;
+                        u_plane[y * uv_width + ux] = (u_acc / count).round().clamp(0.0, 255.0) as u8;
+                        v_plane[y * uv_width + ux] = (v_acc / count).round().clamp(0.0, 255.0) as u8;
                     }
                 }
             }
@@ -124,11 +124,11 @@ pub fn rgb_to_yuv(rgba: &[u8], width: usize, height: usize, subsampling: ColorSu
                     let g = rgba[idx + 1] as f32;
                     let b = rgba[idx + 2] as f32;
 
-                    let u_val = (-0.1146 * r - 0.3854 * g + 0.5000 * b) + 128.0;
-                    let v_val = (0.5000 * r - 0.4542 * g - 0.0458 * b) + 128.0;
+                    let u_val = (-0.114572 * r - 0.385428 * g + 0.500000 * b) + 128.0;
+                    let v_val = (0.500000 * r - 0.454153 * g - 0.045847 * b) + 128.0;
 
-                    u_plane[y * width + x] = u_val.clamp(0.0, 255.0) as u8;
-                    v_plane[y * width + x] = v_val.clamp(0.0, 255.0) as u8;
+                    u_plane[y * width + x] = u_val.round().clamp(0.0, 255.0) as u8;
+                    v_plane[y * width + x] = v_val.round().clamp(0.0, 255.0) as u8;
                 }
             }
         }
@@ -149,37 +149,65 @@ pub fn rgb_to_yuv(rgba: &[u8], width: usize, height: usize, subsampling: ColorSu
     }
 }
 
-/// Convert YUV planes back to RGBA
+#[inline(always)]
+fn sample_chroma_bilinear(plane: &[u8], stride: usize, uv_w: usize, uv_h: usize, x: usize, y: usize, subsampling: ColorSubsampling) -> f32 {
+    match subsampling {
+        ColorSubsampling::Yuv444 | ColorSubsampling::Rgb => {
+            plane[y.min(uv_h - 1) * stride + x.min(uv_w - 1)] as f32
+        }
+        ColorSubsampling::Yuv422 => {
+            let fx = (x as f32 + 0.5) * 0.5 - 0.5;
+            let x0 = (fx.floor() as isize).clamp(0, uv_w as isize - 1) as usize;
+            let x1 = (x0 + 1).min(uv_w - 1);
+            let wx = (fx - fx.floor()).clamp(0.0, 1.0);
+            let row = y.min(uv_h - 1) * stride;
+            let v0 = plane[row + x0] as f32;
+            let v1 = plane[row + x1] as f32;
+            v0 + (v1 - v0) * wx
+        }
+        ColorSubsampling::Yuv420 => {
+            let fx = (x as f32 + 0.5) * 0.5 - 0.5;
+            let fy = (y as f32 + 0.5) * 0.5 - 0.5;
+            let x0 = (fx.floor() as isize).clamp(0, uv_w as isize - 1) as usize;
+            let x1 = (x0 + 1).min(uv_w - 1);
+            let y0 = (fy.floor() as isize).clamp(0, uv_h as isize - 1) as usize;
+            let y1 = (y0 + 1).min(uv_h - 1);
+            let wx = (fx - fx.floor()).clamp(0.0, 1.0);
+            let wy = (fy - fy.floor()).clamp(0.0, 1.0);
+
+            let p00 = plane[y0 * stride + x0] as f32;
+            let p10 = plane[y0 * stride + x1] as f32;
+            let p01 = plane[y1 * stride + x0] as f32;
+            let p11 = plane[y1 * stride + x1] as f32;
+
+            let top = p00 + (p10 - p00) * wx;
+            let bot = p01 + (p11 - p01) * wx;
+            top + (bot - top) * wy
+        }
+    }
+}
+
+/// Convert YUV planes back to RGBA (BT.709 full range with bilinear chroma upsampling)
 pub fn yuv_to_rgb(planes: &YuvPlanes, alpha: Option<&[u8]>) -> Vec<u8> {
     let width = planes.y_width;
     let height = planes.y_height;
     let mut rgba = vec![255u8; width * height * 4];
 
     for y in 0..height {
-        let (uy, vy) = match planes.subsampling {
-            ColorSubsampling::Yuv420 => (y / 2, y / 2),
-            ColorSubsampling::Yuv422 | ColorSubsampling::Yuv444 | ColorSubsampling::Rgb => (y, y),
-        };
-
         for x in 0..width {
-            let (ux, vx) = match planes.subsampling {
-                ColorSubsampling::Yuv420 | ColorSubsampling::Yuv422 => (x / 2, x / 2),
-                ColorSubsampling::Yuv444 | ColorSubsampling::Rgb => (x, x),
-            };
-
             let y_val = planes.y[y * planes.y_stride + x] as f32;
-            let u_val = planes.u[uy * planes.u_stride + ux] as f32 - 128.0;
-            let v_val = planes.v[vy * planes.v_stride + vx] as f32 - 128.0;
+            let u_val = sample_chroma_bilinear(&planes.u, planes.u_stride, planes.uv_width, planes.uv_height, x, y, planes.subsampling) - 128.0;
+            let v_val = sample_chroma_bilinear(&planes.v, planes.v_stride, planes.uv_width, planes.uv_height, x, y, planes.subsampling) - 128.0;
 
             // Inverse BT.709
             let r = y_val + 1.5748 * v_val;
-            let g = y_val - 0.1873 * u_val - 0.4681 * v_val;
+            let g = y_val - 0.187324 * u_val - 0.468124 * v_val;
             let b = y_val + 1.8556 * u_val;
 
             let out_idx = (y * width + x) * 4;
-            rgba[out_idx] = r.clamp(0.0, 255.0) as u8;
-            rgba[out_idx + 1] = g.clamp(0.0, 255.0) as u8;
-            rgba[out_idx + 2] = b.clamp(0.0, 255.0) as u8;
+            rgba[out_idx] = r.round().clamp(0.0, 255.0) as u8;
+            rgba[out_idx + 1] = g.round().clamp(0.0, 255.0) as u8;
+            rgba[out_idx + 2] = b.round().clamp(0.0, 255.0) as u8;
 
             if let Some(a_plane) = alpha {
                 let a_idx = y * width + x;
@@ -200,20 +228,10 @@ pub fn yuv_to_rgb_bt601(planes: &YuvPlanes, alpha: Option<&[u8]>) -> Vec<u8> {
     let mut rgba = vec![255u8; width * height * 4];
 
     for y in 0..height {
-        let (uy, vy) = match planes.subsampling {
-            ColorSubsampling::Yuv420 => (y / 2, y / 2),
-            ColorSubsampling::Yuv422 | ColorSubsampling::Yuv444 | ColorSubsampling::Rgb => (y, y),
-        };
-
         for x in 0..width {
-            let (ux, vx) = match planes.subsampling {
-                ColorSubsampling::Yuv420 | ColorSubsampling::Yuv422 => (x / 2, x / 2),
-                ColorSubsampling::Yuv444 | ColorSubsampling::Rgb => (x, x),
-            };
-
             let y_val = planes.y[y * planes.y_stride + x] as f32;
-            let u_val = planes.u[uy * planes.u_stride + ux] as f32 - 128.0;
-            let v_val = planes.v[vy * planes.v_stride + vx] as f32 - 128.0;
+            let u_val = sample_chroma_bilinear(&planes.u, planes.u_stride, planes.uv_width, planes.uv_height, x, y, planes.subsampling) - 128.0;
+            let v_val = sample_chroma_bilinear(&planes.v, planes.v_stride, planes.uv_width, planes.uv_height, x, y, planes.subsampling) - 128.0;
 
             // Inverse BT.601
             let r = y_val + 1.402 * v_val;
@@ -221,9 +239,9 @@ pub fn yuv_to_rgb_bt601(planes: &YuvPlanes, alpha: Option<&[u8]>) -> Vec<u8> {
             let b = y_val + 1.772 * u_val;
 
             let out_idx = (y * width + x) * 4;
-            rgba[out_idx] = r.clamp(0.0, 255.0) as u8;
-            rgba[out_idx + 1] = g.clamp(0.0, 255.0) as u8;
-            rgba[out_idx + 2] = b.clamp(0.0, 255.0) as u8;
+            rgba[out_idx] = r.round().clamp(0.0, 255.0) as u8;
+            rgba[out_idx + 1] = g.round().clamp(0.0, 255.0) as u8;
+            rgba[out_idx + 2] = b.round().clamp(0.0, 255.0) as u8;
 
             if let Some(a_plane) = alpha {
                 let a_idx = y * width + x;

@@ -8,7 +8,7 @@
 [![PageSpeed](https://img.shields.io/badge/PageSpeed-100%2F100-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Pure Rust](https://img.shields.io/badge/core-Pure%20Rust-orange.svg)](https://www.rust-lang.org/)
-[![Wasm](https://img.shields.io/badge/decoder-61KB%20Wasm%20(Offline)-purple.svg)]()
+[![Wasm](https://img.shields.io/badge/decoder-0KB%20JS%20Fast--Path%20%7C%20130KB%20Wasm-purple.svg)]()
 
 ---
 
@@ -68,16 +68,34 @@ Here are the **three fundamental problems** WPG solves for developers and web ap
 
 ---
 
-## 📊 Real-World Benchmark Verification (Q80)
+## 📊 Real-World Benchmark Verification (Q80, Speed 6)
 
-Tested on mixed photographic and high-frequency content with 100% independent bitstream-level decoding:
+Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`) with 100% independent bitstream-level decoding:
+
+### 1. High-Resolution Photograph (`testing.jpg`, 1344×768, Input: 142.2 KB)
+
+| Format | File Size | vs Input (`.jpg`) | bpp | PSNR | SSIM | Encode / Decode Time |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **✨ WPG (`.wpg` Q80, S6)** | **70.99 KB** (`72,694 B`) | **-50.1%** 🚀 | **0.563** | **39.87 dB** | **0.9802** | **1,292.6 / 402.1 ms** |
+| **AVIF (`.avif` Std Q80, S6)** | 72.41 KB (`74,149 B`) | -49.1% | 0.575 | 40.05 dB | 0.9818 | 2,773.3 / 271.5 ms |
+| **WebP (`.webp` Lossy Q80, S6)** | 87.82 KB (`89,928 B`) | -38.3% | 0.697 | 39.18 dB | 0.9794 | 225.2 / 22.4 ms |
+
+### 2. Camera Photograph with Sensor Grain (`camera_photo.jpg`, 320×240, Input: 13.3 KB)
+
+| Format | File Size | vs Input (`.jpg`) | bpp | PSNR | SSIM | Encode / Decode Time |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **✨ WPG (`.wpg` Q80, S6)** | **1,940 B** (`1.89 KB`) | **-85.7%** 🚀 | **0.202** | **39.68 dB** | **0.9360** | **173.0 / 28.7 ms** |
+| **AVIF (`.avif` Std Q80, S6)** | 2,626 B (`2.56 KB`) | -80.7% | 0.274 | 40.33 dB | 0.9389 | 322.4 / 24.1 ms |
+| **WebP (`.webp` Lossy Q80, S6)** | 2,904 B (`2.84 KB`) | -78.7% | 0.302 | 39.47 dB | 0.9392 | 23.9 / 1.4 ms |
+
+### 3. Mixed Test Image (256×256, Photographic + Vector UI, Quality 80)
 
 | Format | File Size | Bits Per Pixel (bpp) | PSNR | SSIM | vs PNG Baseline |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (Our Format)** | **2,134 B** | **0.260** | **31.10 dB** | **0.8876** | **-65.7%** 🚀 |
+| **✨ WPG (Our Format)** | **2,372 B** | **0.290** | **31.96 dB** | **0.9958** | **-61.9%** 🚀 |
 | **WebP (Lossy Q80)** | 2,142 B | 0.261 | 32.05 dB | 0.9961 | -65.6% |
 | **WebP (Lossless VP8L)** | 2,150 B | 0.262 | 99.99 dB | 1.0000 | -65.4% |
-| **AVIF (Standard Q80)** | 2,817 B | 0.344 | 42.33 dB | 0.9969 | -54.7% |
+| **AVIF (Standard Q80)** | 2,817 B | 0.344 | 42.70 dB | 0.9969 | -54.7% |
 | **PNG (Baseline)** | 6,222 B | 0.760 | 99.99 dB | 1.0000 | Baseline |
 | **JPEG (Q80)** | 8,262 B | 1.009 | 38.85 dB | 0.9966 | +32.8% |
 
@@ -95,7 +113,7 @@ Tested on mixed photographic and high-frequency content with 100% independent bi
 | **First Contentful Paint (FCP)** | 0.8 s | **0.7 s** | **0.7s sub-second paint** |
 | **Largest Contentful Paint (LCP)** | 3.1 s (Red) | **1.8 s** (Green) | **-42% faster contentful paint** |
 
-> **Production Key Insight:** By pairing `.wpg` batch encoding with `<wpg-img loading="lazy">` and `<script defer>`, total page image weight fell from **12.88 MB down to 1.08 MB (-91.6%)**, eliminating all Lighthouse next-gen format warnings and boosting mobile performance to **96/100**.
+> **Production Key Insight:** By pairing `.wpg` batch encoding with `<wpg-img loading="lazy">` and `<script type="module" src="/wpg-element.js">`, total page image weight fell from **12.88 MB down to 1.08 MB (-91.6%)**, eliminating all Lighthouse next-gen format warnings and boosting mobile performance to **96/100**.
 
 ---
 
@@ -166,6 +184,26 @@ import 'wpg-img';
 <wpg-img src="/images/gallery.wpg" alt="Art Gallery" loading="lazy" />
 ```
 
+### 5. Server render (`renderWpgImg`)
+Frameworks that can emit HTML before JavaScript (Next.js, Nuxt, SvelteKit) can pre-render the aspect-ratio box and the micro-preview:
+
+```js
+import { renderWpgImg } from 'wpg-img';
+
+const html = renderWpgImg({
+  src: '/images/hero.wpg',
+  alt: 'Hero',
+  width: 800,
+  height: 600,
+  bytes: fileOr32BytePrefix,
+  loading: 'lazy'
+});
+```
+
+`bytes` may be the whole file or the first 32 bytes. `preview` accepts the 16-byte block when `width` and `height` are also set. The markup uses `<template shadowrootmode="open">`. The client adopts that shadow root when the module loads.
+
+Optional attributes: `wasm-url`, `worker-url`, and `fallback-url` (default `/api/decode`; `"none"` disables the server fallback).
+
 ---
 
 ## 🛠️ Programmatic Decoding API
@@ -189,11 +227,14 @@ document.getElementById('my-img').src = imgUrl;
 
 ## ⚡ How the Client-Side Decoder Works Under The Hood
 
-1. **Phase 1 — Native Lazy Loading (`loading="lazy"`):** When `loading="lazy"` is set, an `IntersectionObserver` defers HTTP fetching until the image nears the viewport (`200px` root margin), eliminating network congestion during initial load.
-2. **Phase 2 — Instant Micro-Preview (< 0.05 ms):** Reads the 16-byte preview payload and renders a 4x4 canvas with `filter: blur(14px)` immediately. **Zero Cumulative Layout Shift (CLS)**.
-3. **Phase 3 — In-Memory GPU Decoding (0.005 ms overhead):** The bundled 61 KB WebAssembly engine (`wpg-decoder.wasm`) extracts the raw AV1 OBU, synthesizes an ultra-lightweight ISOBMFF header directly in memory, and passes it to the browser's native hardware-accelerated AV1 pipeline (`ImageBitmap`).
-4. **Phase 4 — Real-Time Film Grain:** If grain parameters are present, the client PRNG synthesizes the exact natural noise variance directly onto the canvas pixels.
-5. **Phase 5 — Seamless Crossfade:** The canvas smoothly transitions from placeholder blur to pin-sharp native resolution.
+1. **ReadableStream.** `response.body.getReader()` accumulates chunks until 32 bytes are available, then reads the header and micro-preview across chunk boundaries.
+2. **Micro-preview.** The 16-byte block becomes a blurred SVG `<img>`. `width` and `height` set `aspect-ratio`. The display canvas stays 4×4 until the final frame, so the placeholder does not allocate a full-resolution bitmap.
+3. **Zero-Wasm Fast Path & Worker Decode.** `wpg-img/worker` (`dist/wpg-worker.js`) wraps standard Mode 0 AV1 payloads into a 242-byte ISOBMFF header and applies Xorshift32 film grain on an `OffscreenCanvas` in pure JavaScript (**0 KB Wasm downloaded**). When an image uses Mode 1 (Palette), Mode 2 (Modular), `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY`, the worker lazily loads `wpg-decoder.wasm` (~130 KB with LTO) on demand. The finished frame is transferred with `postMessage(..., [bitmap])`.
+4. **Fallbacks.** Worker, then main-thread Wasm, then `POST` to `fallback-url`. A worker crash rejects the in-flight job so the next tier still runs.
+5. **Lazy recycle.** `loading="lazy"` keeps an `IntersectionObserver` (`rootMargin: 200px`). Leaving that margin cancels the decode, closes the `ImageBitmap`, and releases the canvas. Coming back fetches the URL again.
+6. **SSR.** `renderWpgImg()` emits the same preview inside Declarative Shadow DOM before the module executes.
+
+`decodeWpg()` is the programmatic API for a buffer you already have. It still accepts an `ArrayBuffer`. The `<wpg-img>` element itself streams the HTTP body.
 
 ---
 
@@ -204,7 +245,7 @@ Images account for over **60% of total web page weight** and are the #1 factor a
 ### 1. 📐 Flawless Cumulative Layout Shift (CLS: 0.000)
 * **The Problem:** Modern search engines (Google Search, Discover) penalize pages when elements jump around during image asset loading.
 * **The WPG Guarantee:** Thanks to WPG's sequential binary layout, `<wpg-img>` extracts the image dimensions from the 16-byte fixed header in **< 0.05 ms**—long before full network payloads arrive. It automatically allocates the exact aspect-ratio bounding box, guaranteeing a **CLS of 0.000**.
-* **Instant Visual Engagement:** The embedded 16-byte micro-preview renders a smooth, color-matched blurred canvas immediately, eliminating jarring white boxes and dramatically cutting user bounce rates.
+* **Instant Visual Engagement:** The embedded 16-byte micro-preview renders as a color-matched blurred SVG as soon as those bytes arrive.
 
 ### 2. ⚡ Accelerated Largest Contentful Paint (LCP)
 * WPG delivers **20% to 35% smaller file sizes than AVIF** on camera photographs (via Parametric Film Grain Synthesis) and **up to 68% smaller than legacy JPEG**.

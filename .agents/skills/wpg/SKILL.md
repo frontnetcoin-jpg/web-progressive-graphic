@@ -8,18 +8,18 @@ description: >-
   micro-preview, or integrating the <wpg-img> web component.
 ---
 
-# ⚡ Skill: WPG (Web Progressive Graphic) Next-Gen Image Format
+# WPG (Web Progressive Graphic) Next-Gen Image Format
 
-Αυτό το skill παρέχει πλήρη τεχνική τεκμηρίωση, αρχιτεκτονική ανάλυση, workflows, εντολές CLI και μεθοδολογία ανάπτυξης και συντήρησης για το format εικόνας **WPG (.wpg)**.
+This skill is the engineering reference for the **WPG (.wpg)** image format: architecture, CLI workflows, the `<wpg-img>` client, and the rules for changing the codebase safely.
 
 ---
 
-## 1. Επισκόπηση & Αρχιτεκτονική WPG
+## 1. Overview and Architecture
 
-Το WPG είναι ένα format εικόνας επόμενης γενιάς σε **Pure Rust**, βασισμένο στον αλγόριθμο **AV1 Intra**, απαλλαγμένο από το container bloat του **.avif (ISOBMFF)** και βελτιστοποιημένο για το σύγχρονο Web:
+WPG is a **pure Rust** image format based on **AV1 Intra**. It drops the ISOBMFF container tax of `.avif` and is built for the modern web:
 
 ```
-[Εικόνα Εισόδου (PNG, JPEG, WebP, Raw RGBA)]
+[Input image (PNG, JPEG, WebP, raw RGBA)]
                      │
                      ▼
   ┌──────────────────────────────────────────────┐
@@ -45,147 +45,170 @@ description: >-
   │  • Mode, Subsampling, Bitflags, Quality      │
   │  • [Optional 16B] Micro-Preview Block        │
   │  • [Optional 8B] Film Grain Parameter Block  │
+  │  • [Optional] Alpha Block (u32 BE length)    │
   │  • Primary Payload (OBU Bitstream / Zstd)    │
   └──────────────────────┬───────────────────────┘
                          │
                          ▼
-             [Τελικό Αρχείο *.wpg]
+                  [Final *.wpg file]
 ```
 
-### Βασικά Modules του Codebase (`src/`)
+### Core modules (`src/`)
 
-* [`src/header.rs`](file:///c:/Users/user/Desktop/wpg/src/header.rs): Διαχείριση του 16-byte binary header, bitflags (`FLAG_MICRO_PREVIEW`, `FLAG_FILM_GRAIN`, `FLAG_LOSSLESS`), σειριοποίηση και επικύρωση.
-* [`src/preview.rs`](file:///c:/Users/user/Desktop/wpg/src/preview.rs): Δημιουργία και αποκωδικοποίηση του **16-byte micro-preview** (4 χρώματα RGB K-means + 16 2-bit spatial indices σε 4x4 grid).
-* [`src/grain.rs`](file:///c:/Users/user/Desktop/wpg/src/grain.rs): Εκτίμηση θορύβου με τελεστή Laplace, απαλή εξομάλυνση πριν την κωδικοποίηση, και ντετερμινιστική σύνθεση κόκκου (Xorshift32 PRNG) κατά το decode.
-* [`src/color.rs`](file:///c:/Users/user/Desktop/wpg/src/color.rs): Χρωματικοί μετασχηματισμοί sRGB $\leftrightarrow$ YUV (4:2:0, 4:2:2, 4:4:4) κατά BT.709 & BT.601, καθώς και μαθηματικά αντιστρέψιμος YCoCg-R.
-* [`src/lossless.rs`](file:///c:/Users/user/Desktop/wpg/src/lossless.rs): Mode 1 (Palette $\le 256$ χρωμάτων + 2D RLE + Zstd) και Mode 2 (YCoCg-R + Paeth/Median predictors + Zstd).
-* [`src/av1_codec.rs`](file:///c:/Users/user/Desktop/wpg/src/av1_codec.rs): Pure Rust AV1 intra encoder (`rav1e`) και decoder (`rav1d`). Περιέχει βαθμονομημένη καμπύλη κβαντιστή και τη συνάρτηση `decode_avif_to_rgba` για bitstream-level AVIF decode.
-* [`src/encoder.rs`](file:///c:/Users/user/Desktop/wpg/src/encoder.rs) & [`src/decoder.rs`](file:///c:/Users/user/Desktop/wpg/src/decoder.rs): High-level pipelines κωδικοποίησης και αποκωδικοποίησης WPG.
-* [`src/metrics.rs`](file:///c:/Users/user/Desktop/wpg/src/metrics.rs): Ακριβής υπολογισμός PSNR, SSIM, bpp και ποσοστών εξοικονόμησης pixel-προς-pixel.
-* [`src/server.rs`](file:///c:/Users/user/Desktop/wpg/src/server.rs): Ενσωματωμένος HTTP server (`tiny_http`) με Glassmorphic Web Showcase GUI, zoom lens, REST API και serving του Web Component.
-* [`src/bin/wpg.rs`](file:///c:/Users/user/Desktop/wpg/src/bin/wpg.rs): Ενοποιημένο CLI εργαλείο (`encode`, `decode`, `batch`, `bench`, `info`, `serve`).
-* [`wpg-element.js`](file:///c:/Users/user/Desktop/wpg/wpg-element.js): Native Web Component `<wpg-img>` για zero-CLS placeholders και progressive rendering στο browser.
+* [`src/header.rs`](file:///c:/Users/user/Desktop/wpg/src/header.rs): 16-byte binary header, bitflags (`FLAG_ALPHA`, `FLAG_MICRO_PREVIEW`, `FLAG_FILM_GRAIN`, `FLAG_SECONDARY_ENTROPY`, `FLAG_LOSSLESS`), serialization, and validation.
+* [`src/preview.rs`](file:///c:/Users/user/Desktop/wpg/src/preview.rs): 16-byte micro-preview (4 RGB K-means colors plus 16 2-bit spatial indices on a 4×4 grid).
+* [`src/grain.rs`](file:///c:/Users/user/Desktop/wpg/src/grain.rs): 2D local-extremum camera noise detector (ignores smooth gradients and edges), pre-encode smoothing, and deterministic Xorshift32 grain synthesis on decode. The on-disk block is 8 bytes: `grain_scale`, `grain_seed` (u16 BE), `grain_cutoff`, `chroma_scale`, `blend_mode`, and 2 reserved bytes.
+* [`src/color.rs`](file:///c:/Users/user/Desktop/wpg/src/color.rs): sRGB to YUV (4:2:0, 4:2:2, 4:4:4) using BT.709 and BT.601 with unbiased rounding and bilinear chroma upsampling, plus reversible YCoCg-R.
+* [`src/lossless.rs`](file:///c:/Users/user/Desktop/wpg/src/lossless.rs): Mode 1 (palette of at most 256 colors, 2D RLE, Zstd) and Mode 2 (YCoCg-R, Paeth/Median predictors, Zstd).
+* [`src/av1_codec.rs`](file:///c:/Users/user/Desktop/wpg/src/av1_codec.rs): Multi-threaded pure Rust AV1 intra encoder (`rav1e 0.8` with parallel tiles and still-image speed settings) and decoder (`rav1d`), the calibrated quantizer curve, and `decode_avif_to_rgba` for bitstream-level AVIF decode.
+* [`src/encoder.rs`](file:///c:/Users/user/Desktop/wpg/src/encoder.rs) and [`src/decoder.rs`](file:///c:/Users/user/Desktop/wpg/src/decoder.rs): High-level encode and decode pipelines (single cached palette pass). The alpha block is a big-endian `u32` length followed by a Zstd plane.
+* [`src/metrics.rs`](file:///c:/Users/user/Desktop/wpg/src/metrics.rs): Pixel-accurate PSNR, SSIM, bits per pixel, and savings.
+* [`src/server.rs`](file:///c:/Users/user/Desktop/wpg/src/server.rs): Embedded HTTP server with the **3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`)**, drag-and-drop `.jpg` dropzone, split view, zoom lens, REST API, and the web component assets.
+* [`src/bin/wpg.rs`](file:///c:/Users/user/Desktop/wpg/src/bin/wpg.rs): Unified CLI (`encode`, `decode`, `batch`, `bench`, `info`, `serve`, `view`, `register`).
+* [`wpg-element.js`](file:///c:/Users/user/Desktop/wpg/wpg-element.js): ESM `<wpg-img>` client. ReadableStream micro-preview, worker pool, 0-KB Wasm pure-JS Mode 0 fast path, Declarative Shadow DOM / `renderWpgImg()`, and fallbacks.
+* [`wpg-worker.js`](file:///c:/Users/user/Desktop/wpg/wpg-worker.js): Off-thread 0-KB Wasm pure-JS ISOBMFF wrapper (`wrapWpgMode0ToAvifJs`) and `applyFilmGrainJs` for Mode 0, plus lazy on-demand Wasm loading for palette/modular RGBA decode and alpha merge, returning a transferable `ImageBitmap`.
+* [`crates/wpg-wasm`](file:///c:/Users/user/Desktop/wpg/crates/wpg-wasm/src/lib.rs): On-demand client decoder. `wpg_alloc` / `wpg_free` use one exact allocation size. `wpg_wrap_to_avif` returns `-5` for Mode 1 and Mode 2. `wpg_decode_rgba` decodes those modes. `wpg_apply_alpha` merges the Zstd alpha plane.
 
 ---
 
-## 2. Οδηγός Χρήσης CLI (`wpg`)
+## 2. CLI Guide (`wpg`)
 
-### Εκκίνηση του Web Showcase & Viewer
+### Web showcase and viewer
 ```powershell
 .\target\release\wpg.exe serve --port 3000
 ```
 - URL: `http://127.0.0.1:3000`
-- Παρέχει σύγκριση split slider 1:1, zoom magnifier, EXIF orientation διόρθωση, ζωντανά ρυθμιστικά και κουμπιά download `.wpg`, `.png`, και `.bin`.
+- Features the **3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`)** with drag-and-drop `.jpg` upload, podium cards, 1:1 split comparison slider, zoom magnifier, EXIF orientation correction, live quality/speed controls, and 1-click download buttons for `.wpg`, `.webp`, `.avif`, `.png`, and `.bin`.
+- The integration card includes a live `<wpg-img>` that automatically updates to preview `/api/latest.wpg` and a **Reload / Test Transition** button.
 
-### Μαζική Μετατροπή Φακέλων (Batch Conversion)
+### Batch conversion
 ```powershell
-# Μετατροπή όλων των εικόνων σε έναν φάκελο με ποιότητα 75:
+# Convert every image in a folder at quality 75:
 .\target\release\wpg.exe batch C:\path\to\images -q 75
 
-# Αναδρομική μετατροπή υποκαταλόγων και αποθήκευση σε νέο φάκελο:
+# Recurse into subdirectories and write a new folder:
 .\target\release\wpg.exe batch .\input_photos -o .\output_wpg -q 80 -s 6 -r
 ```
 
-### Μεμονωμένες Εντολές CLI
+### Single commands
 ```powershell
-# Κωδικοποίηση (Encode)
+# Encode
 .\target\release\wpg.exe encode input.png output.wpg --quality 80 --speed 6
 
-# Αποκωδικοποίηση (Decode σε PNG)
+# Decode to PNG
 .\target\release\wpg.exe decode output.wpg restored.png
 
-# Εξαγωγή μόνο του 16-byte micro-preview (4x4 PNG)
+# Extract only the 16-byte micro-preview as a 4x4 PNG
 .\target\release\wpg.exe decode output.wpg placeholder.png --preview-only
 
-# Πληροφορίες Header & Container (Info)
+# Header and container info
 .\target\release\wpg.exe info output.wpg
 
-# Πλήρες Benchmark (WPG vs AVIF vs PNG vs JPEG vs WebP) με PSNR & SSIM
-.\target\release\wpg.exe bench input.png --quality 80
+# 3-Format Head-to-Head Benchmark (.wpg vs .webp vs .avif) with PSNR, SSIM, bpp, and optional output folder
+.\target\release\wpg.exe bench input.jpg --quality 80 --speed 6 --output-dir .\bench_out
 
-# Native Desktop Viewer (Υπερταχύ Win32 GDI με Pan & Zoom)
+# Native desktop viewer (Win32 GDI with pan and zoom)
 .\target\release\wpg.exe view output.wpg
-# ή απευθείας:
+# or directly:
 .\target\release\wpg-view.exe output.wpg
 
-# Εγγραφή στο Windows Explorer (1-Click, Χωρίς Δικαιώματα Διαχειριστή)
-# Ενεργοποιεί: Διπλό κλικ, Context Menu & Live Explorer Thumbnails (wpg_thumb.dll)
+# Register with Windows Explorer (no administrator rights)
+# Enables double-click, the context menu, and live Explorer thumbnails (wpg_thumb.dll)
 .\target\release\wpg.exe register
 
-# Κατάργηση εγγραφής από το Windows Explorer:
+# Remove the Explorer registration:
 .\target\release\wpg.exe unregister
 ```
 
-### Windows Shell Integration & Thumbnail Provider (`wpg_thumb.dll`)
-* **Live Thumbnails στο Windows Explorer:** Υλοποίηση του Windows Shell COM interface `IThumbnailProvider` και `IInitializeWithFile` σε Pure Rust (`crates/wpg-thumb`). Αποκωδικοποιεί αστραπιαία το AV1 bitstream και επιστρέφει hardware-ready 32-bit ARGB DIB bitmaps σε οποιοδήποτε μέγεθος (Extra Large, Large, Medium, Small Icons, και Preview Pane).
-* **Native Desktop Viewer (`wpg-view.exe`):** Αυτόνομο Win32 binary με double-buffered GDI canvas, smooth mouse-wheel zoom, drag-to-pan, directory browsing με βελάκια, PNG export με `S`, fullscreen με `F`/`F11`, overlay HUD με `I`, και drag & drop αρχείων.
-* **Explorer Context Menu:** Δεξί κλικ σε οποιοδήποτε `.wpg` εμφανίζει: "Open with WPG Viewer", "Convert to PNG" και "WPG Image Analysis".
-* **Zero-Admin Registration:** Όλα τα COM CLSID και ProgID κλειδιά καταχωρούνται στο `HKCU:\Software\Classes` χωρίς να ζητείται UAC / Administrator prompt.
+### Windows shell integration (`wpg_thumb.dll`)
+* **Explorer thumbnails:** `crates/wpg-thumb` implements `IThumbnailProvider` and `IInitializeWithFile` in pure Rust. It decodes the AV1 bitstream and returns a 32-bit ARGB DIB at the size Explorer requests.
+* **Desktop viewer (`wpg-view.exe`):** Double-buffered GDI canvas, mouse-wheel zoom, drag-to-pan, directory browsing with the arrow keys, PNG export with `S`, fullscreen with `F` / `F11`, the HUD with `I`, and drag-and-drop.
+* **Context menu:** Right-click a `.wpg` file for "Open with WPG Viewer", "Convert to PNG", and "WPG Image Analysis".
+* **Zero-admin registration:** COM CLSID and ProgID keys are written under `HKCU:\Software\Classes`. No UAC prompt.
 
 ---
 
-## 3. Web Component `<wpg-img>` Workflow
+## 3. Web Component `<wpg-img>`
 
-Για ενσωμάτωση του WPG σε οποιαδήποτε web εφαρμογή (HTML/React/Vue/Laravel):
+`wpg-element.js` is an ES module and must be loaded with `type="module"`. The showcase server embeds it with `include_str!` and serves `/wpg-element.js`, `/wpg-worker.js`, and `/wpg-decoder.wasm`.
 
 ```html
-<!-- 1. Φόρτωση του script -->
-<script src="http://localhost:3000/wpg-element.js"></script>
+<script type="module" src="http://localhost:3000/wpg-element.js"></script>
 
-<!-- 2. Χρήση του tag -->
-<wpg-img 
-    src="http://localhost:3000/api/sample.wpg" 
-    alt="High-Efficiency WPG Asset" 
+<wpg-img
+    src="http://localhost:3000/api/sample.wpg"
+    alt="High-Efficiency WPG Asset"
+    width="800"
+    height="600"
     style="width: 100%; max-width: 800px; border-radius: 12px;">
 </wpg-img>
 ```
 
-### Μηχανισμός Προοδευτικής & Offline Wasm Φόρτωσης:
-1. Το component διαβάζει τα **πρώτα 32 bytes** του αρχείου μέσω HTTP Range request ή stream slice.
-2. Αντλεί το **16-byte micro-preview** και το σχεδιάζει άμεσα σε `<canvas width="4" height="4">` με `filter: blur(14px)`.
-3. **Αποτέλεσμα:** Ο χρήστης βλέπει αμέσως τα χρώματα και τη διάταξη της εικόνας σε **< 0.05 ms**, εξαλείφοντας εντελώς το **Cumulative Layout Shift (CLS)**.
-4. **100% Offline Wasm Decoding:** Το Wasm module (`wpg-decoder.wasm`, μόλις 61 KB) διαβάζει το raw AV1 OBU stream, συνθέτει ακαριαία (0.005 ms) το ελαφρύ ISOBMFF header στη μνήμη του browser και καλεί την ενσωματωμένη GPU video/image engine του περιηγητή (`ImageBitmap`).
-5. **Real-Time Client Grain:** Αν η εικόνα έχει κόκκο (`FLAG_FILM_GRAIN`), το Wasm εφαρμόζει τη ντετερμινιστική σύνθεση Xorshift32 PRNG απ' ευθείας στα pixels του canvas.
+The showcase page renders a live `<wpg-img src="/api/sample.wpg" alt="Live WPG Component Preview">` beside the integration snippet. **Reload / Test Transition** sets `src` to `/api/sample.wpg?t=<timestamp>`. The router strips the query string, so the sample route still matches.
+
+### Progressive load
+1. **ReadableStream.** `response.body.getReader()` accumulates chunks until `totalLength >= 32`. The first 32 bytes are stitched even when the first packet is only the 16-byte header. Do not assume the first `read()` is at least 32 bytes. This path does not use HTTP Range requests.
+2. **Micro-preview.** The 16-byte block becomes an SVG data-URI `<img id="ssr-preview">` with `blur(14px)`. The `<canvas>` stays 4×4 until the final frame. `width` and `height` set `aspect-ratio` so layout shift stays at zero.
+3. **Worker & Zero-Wasm Fast Path.** Standard Mode 0 images are wrapped into a 242-byte ISOBMFF header (`wrapWpgMode0ToAvifJs`) and grain-synthesized (`applyFilmGrainJs`) in pure JavaScript inside `wpg-worker.js` with **0 KB of WebAssembly downloaded**. Only when an image uses Mode 1 (Palette), Mode 2 (Modular), `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY` does the worker lazily load `wpg-decoder.wasm` on demand (`wpg_wrap_to_avif` returns `-5` for Mode 1/2, selecting `wpg_decode_rgba`; `FLAG_ALPHA` is merged via `wpg_apply_alpha`). The frame returns with `postMessage(..., [bitmap])`. The worker receives a copy of the buffer.
+4. **Fallbacks.** Worker, then Wasm on the main thread, then `POST` to `fallback-url` (default `/api/decode`). `fallback-url="none"` skips the server. A worker crash rejects the pending promise.
+5. **`loading="lazy"`.** An `IntersectionObserver` (`rootMargin: 200px`) stays connected. Outside that margin the decode is cancelled, the `ImageBitmap` is closed, and the canvas is cleared. The SVG remains. Coming back fetches the URL again.
+6. **SSR.** `renderWpgImg()` is safe to call from Node. It emits Declarative Shadow DOM with the aspect-ratio box and the SVG preview before JavaScript runs.
+
+```js
+import { renderWpgImg } from 'wpg-img';
+
+const html = renderWpgImg({
+  src: '/images/hero.wpg',
+  alt: 'Hero',
+  width: 800,
+  height: 600,
+  bytes: fileOr32BytePrefix,
+  loading: 'lazy'
+});
+```
+
+Other attributes: `wasm-url`, `worker-url`, `fallback-url`.
+
+A Mode 0 payload with `FLAG_SECONDARY_ENTROPY` is Zstd-inflated inside `wpg_wrap_to_avif` and then wrapped. If that inflate fails, the call returns `-5` and the page uses the server fallback.
 
 ---
 
-## 4. Δημόσιο Οικοσύστημα & Διανομή (NPM & GitHub)
+## 4. Public Distribution (npm and GitHub)
 
-* **GitHub Repository:** [https://github.com/frontnetcoin-jpg/web-progressive-graphic](https://github.com/frontnetcoin-jpg/web-progressive-graphic) (Public, Branch `main`)
-* **NPM Registry Package:** [https://www.npmjs.com/package/wpg-img](https://www.npmjs.com/package/wpg-img) (`wpg-img@1.0.0`)
-  - Εγκατάσταση: `npm install wpg-img`
-  - Περιέχει: TypeScript typings (`dist/index.d.ts`), ESM bundle (`dist/index.js`), 61 KB Wasm (`wpg-decoder.wasm`).
+* **GitHub repository:** [https://github.com/frontnetcoin-jpg/web-progressive-graphic](https://github.com/frontnetcoin-jpg/web-progressive-graphic) (public, branch `main`)
+* **npm package:** [https://www.npmjs.com/package/wpg-img](https://www.npmjs.com/package/wpg-img) (`wpg-img@1.0.1`)
+  - Install: `npm install wpg-img`
+  - Contents: TypeScript types (`dist/index.d.ts`), ESM client (`dist/index.js`), worker (`dist/wpg-worker.js`), and the on-demand Wasm decoder (`wpg-decoder.wasm`, ~130 KB with LTO). Exports: `<wpg-img>`, `renderWpgImg`, `decodeWpg`, `getWpgWasm`, `getWpgWorkerPool`.
 
-### Standalone Binary Installers & Release Script
+### Installers and release packaging
 - **Windows PowerShell:** `scripts/install.ps1`
-- **Linux/macOS Bash:** `scripts/install.sh`
-- **Release Packaging:** `scripts/package-release.ps1` (δημιουργεί το `wpg-v1.0.0-windows-x86_64.zip`)
+- **Linux and macOS:** `scripts/install.sh`
+- **Release zip:** `scripts/package-release.ps1` builds `wpg-v1.0.0-windows-x86_64.zip`
 
 ---
 
-## 5. Τοπικό Περιβάλλον Δοκιμών (`playground/`)
+## 5. Local Playground (`playground/`)
 
-Για άμεσες δοκιμές οποιασδήποτε εικόνας:
-- `playground/input/`: Τοποθέτηση εικόνων (`.jpg`, `.png`, `.webp`).
-- `playground/output/`: Παραγόμενα `.wpg` και decoded αρχεία.
-- `playground/test-encode.ps1`: 1-Click script συμπίεσης, υπολογισμού οικονομίας και αυτόματων benchmarks.
-- `playground/index.html`: Web GUI για ζωντανή δοκιμή με drag-and-drop και ανάλυση header.
-- `playground/wpg-bundle.js`: Αυτόνομο bundle με ενσωματωμένο base64 WebAssembly για 100% ασφαλή λειτουργία ακόμα και με πρωτόκολλο `file:///`.
+- `playground/input/`: Drop `.jpg`, `.png`, or `.webp` files here.
+- `playground/output/`: Encoded `.wpg` files and decoded PNGs.
+- `playground/test-encode.ps1`: One-click encode, savings report, and benchmarks.
+- `playground/index.html`: Drag-and-drop page for the offline bundle.
+- `playground/wpg-bundle.js`: Older self-contained bundle with Wasm embedded as base64 so `file:///` works. It has no ReadableStream client, no worker, and no `renderWpgImg()`. The production client is `wpg-element.js`.
 
 ---
 
-## 6. SEO & Core Web Vitals Strategy
+## 6. SEO and Core Web Vitals
 
-- **CLS Score 0.000:** Το 16-byte fixed container και το 16-byte micro-preview δεσμεύουν τις διαστάσεις της εικόνας σε `< 0.05 ms`, προσφέροντας άριστο Google ranking score.
-- **LCP Optimization:** 20% έως 35% ταχύτερο LCP συγκριτικά με το AVIF, και έως 68% μικρότερο βάρος σε σχέση με το JPEG.
-- **Production Milestone (any2prompt.com):** Επιβεβαιώθηκε στην πράξη σε ζωντανό SaaS application εκτοξεύοντας το Google PageSpeed score από **74-75** σε **96/100 (Καταπράσινο)**!
-  - Gallery (10 εικόνες): Από **8.69 MB** σε **993 KB** (**-88.6%**).
-  - Hero visual: Από **4.19 MB** σε **87.9 KB** (**-97.9%**).
-- **Αρχιτεκτονικοί Κανόνες Ενσωμάτωσης (Web Best Practices):**
-  1. **Lazy Loading:** Χρήση `loading="lazy"` στα `<wpg-img>` για below-the-fold assets. Το component ενεργοποιεί εσωτερικό `IntersectionObserver` με `200px` rootMargin αποτρέποντας το μπούκωμα του δικτύου.
-  2. **Script Deferral:** Φόρτωση του bundle script πάντα με `defer` (`<script src="/js/wpg-bundle.js" defer></script>`).
-  3. **No Duplicate Fetch:** Έλεγχος `this._loadedUrl` για αποτροπή διπλών HTTP αιτημάτων.
-  4. **No-JS Crawler Fallback:**
+- **CLS 0.000:** The 16-byte header and 16-byte micro-preview reserve the image box in under 0.05 ms.
+- **LCP:** 20% to 35% smaller than AVIF on camera photographs, and up to 68% smaller than JPEG.
+- **Production result (any2prompt.com):** Mobile PageSpeed moved from **74–75** to **96/100**.
+  - Gallery (10 images): **8.69 MB** to **993 KB** (**-88.6%**).
+  - Hero visual: **4.19 MB** to **87.9 KB** (**-97.9%**).
+- **Integration rules:**
+  1. **Lazy loading:** `loading="lazy"` keeps an `IntersectionObserver` with a `200px` root margin. The fetch waits until the image nears the viewport, and the canvas plus `ImageBitmap` are released after it leaves.
+  2. **ESM:** Load the production script as `<script type="module" src="/wpg-element.js"></script>`. `defer` on a classic script does not load this file, because the file has `export`.
+  3. **No duplicate fetch:** `loadWpg` ignores a repeated `src` while `_loadedUrl` matches. A new query string (`?t=`) starts a new load.
+  4. **No-JS crawler fallback:**
      ```html
      <wpg-img src="/images/hero.wpg" alt="Hero Title" loading="lazy">
        <noscript>
@@ -196,24 +219,26 @@ description: >-
 
 ---
 
-## 7. Κανόνες Ανάπτυξης & Safety Rules
+## 7. Development and Safety Rules
 
-1. **Windows Binary Lock (`os error 32`):**
-   - Πριν τρέξετε `cargo build --release`, **τερματίστε** πάντα τυχόν ανοιχτό process του server (`taskkill /F /IM wpg.exe` ή `manage_task kill`), αλλιώς τα Windows κλειδώνουν το εκτελέσιμο αρχείο στο δίσκο.
-2. **Ανεξαρτησία Μετρήσεων Benchmarks (100% Confidence Rule):**
-   - Μην χρησιμοποιείτε ποτέ placeholders για metrics τρίτων formats.
-   - Το AVIF αποκωδικοποιείται bitstream-level παρακάμπτοντας το monochrome alpha payload στο κουτί `mdat`.
-   - Το WebP υποστηρίζει **Lossy WebP (Google libwebp-sys)** και **Lossless WebP (VP8L)** με πραγματικό υπολογισμό PSNR και SSIM pixel-προς-pixel.
-3. **Wasm Compatibility:**
-   - Το `crates/wpg-wasm` διατηρείται εξαιρετικά ελαφρύ (< 65 KB) χωρίς εξαρτήσεις POSIX/libc ώστε να μεταγλωττίζεται αυτόνομα σε `wasm32-unknown-unknown`.
-4. **Master Memory:**
-   - Συμβουλευτείτε πάντα το [`MEMORY.md`](file:///c:/Users/user/Desktop/wpg/MEMORY.md) για πλήρεις τεχνικές προδιαγραφές, εξισώσεις και ιστορικό αποφάσεων.
-5. **Ιστορική Διασάφηση (WordPerfect Disambiguation):**
-   - Το WPG (Web Progressive Graphic) είναι σύγχρονο web standard του 2026 και δεν έχει καμία σχέση με το παρωχημένο format των '80s *WordPerfect Graphics* (`.wpg`). Όπως το TypeScript (`.ts`) έναντι του MPEG Transport Stream (`.ts`), η κατάληξη διακρίνεται από το context, το MIME type (`image/wpg`) και τα binary magic bytes `b"WPG\x01"`.
-6. **Windows Explorer Thumbnail Provider & ShellEx Rules:**
-   - **Stream EOF Handling:** Κατά την ανάγνωση COM streams (`IInitializeWithStream`), η μέθοδος `ISequentialStream::Read` επιστρέφει `S_FALSE (1)` στο τελευταίο chunk του αρχείου. Πρέπει **πάντα** να προστίθενται τα bytes (`read_bytes > 0`) στο memory buffer πριν τον τερματισμό, αποτρέποντας κολοβό AV1 bitstream (`Error parsing OBU data`).
-   - **SystemFileAssociations Override:** Στα Windows 10/11, όταν ένα αρχείο έχει `PerceivedType = image`, ο Explorer πέφτει αυτόματα στο `PhotoMetadataHandler.dll`. Καταχωρούμε πάντα ρητό override στο `HKCU:\Software\Classes\SystemFileAssociations\.wpg\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}`.
-   - **Photo Framing & Icon:** Ορίζουμε `Treatment = 2` για drop-shadow photo border και `DefaultIcon = %SystemRoot%\System32\imageres.dll,-70` για επίσημο graphical image icon.
-   - **Cache Flush:** Μετά από build του `wpg_thumb.dll`, επανεκκινούμε το `explorer.exe` (`Stop-Process -Name explorer -Force; Start-Process explorer.exe`) για άμεση εκκαθάριση της in-memory κρυφής μνήμης thumbnails.
-
-
+1. **Windows binary lock (`os error 32`):**
+   - Before `cargo build --release`, stop any running server (`taskkill /F /IM wpg.exe`). Windows locks the executable while the process is open.
+2. **Embedded showcase assets:**
+   - `src/server.rs` embeds `wpg-element.js`, `wpg-worker.js`, and `wpg-decoder.wasm` with `include_str!` / `include_bytes!`. Changes to those files or to the showcase HTML are invisible in `wpg.exe` until the next `cargo build --release`.
+   - If `cargo` is not on `PATH`, the toolchain binary is `%USERPROFILE%\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe`. Run `target\release\wpg.exe`.
+3. **Benchmark measurements:**
+   - Never substitute placeholder numbers for third-party formats.
+   - AVIF is decoded at bitstream level, skipping the monochrome alpha payload inside the `mdat` box.
+   - WebP covers lossy WebP (Google `libwebp-sys`) and lossless WebP (VP8L), with real pixel PSNR and SSIM.
+4. **Wasm compatibility:**
+   - `crates/wpg-wasm` stays free of POSIX/libc and of `rav1d`, so it compiles for `wasm32-unknown-unknown`. Standard Mode 0 images decode with 0 KB of Wasm via the pure-JS fast path in `wpg-worker.js`; the on-demand Wasm binary (~130 KB with LTO) includes pure-Rust Zstd (`ruzstd`) for alpha, Mode 1, and Mode 2.
+   - Build with `cargo build -p wpg-wasm --target wasm32-unknown-unknown --release`, then copy `wpg_wasm.wasm` to `wpg-decoder.wasm`, `packages/wpg-img/wpg-decoder.wasm`, and `packages/wpg-img/dist/wpg-decoder.wasm`.
+5. **Master memory:**
+   - Read [`MEMORY.md`](file:///c:/Users/user/Desktop/wpg/MEMORY.md) for the format equations and decision history.
+6. **WordPerfect disambiguation:**
+   - WPG (Web Progressive Graphic) is a 2026 web image format. It is unrelated to the 1980s *WordPerfect Graphics* format (`.wpg`). As with TypeScript (`.ts`) and MPEG Transport Stream (`.ts`), the extension is distinguished by context, the MIME type `image/wpg`, and the magic bytes `b"WPG\x01"`.
+7. **Windows Explorer thumbnail provider:**
+   - **Stream EOF:** `ISequentialStream::Read` returns `S_FALSE (1)` on the last chunk. Always append bytes when `read_bytes > 0` before stopping, or the AV1 bitstream is truncated (`Error parsing OBU data`).
+   - **SystemFileAssociations override:** On Windows 10/11, `PerceivedType = image` makes Explorer fall through to `PhotoMetadataHandler.dll`. Register an explicit override at `HKCU:\Software\Classes\SystemFileAssociations\.wpg\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}`.
+   - **Photo frame and icon:** Set `Treatment = 2` for the drop-shadow photo border and `DefaultIcon = %SystemRoot%\System32\imageres.dll,-70`.
+   - **Cache flush:** After rebuilding `wpg_thumb.dll`, restart Explorer (`Stop-Process -Name explorer -Force; Start-Process explorer.exe`) so the in-memory thumbnail cache is cleared.

@@ -78,15 +78,23 @@ enum Commands {
         input: PathBuf,
     },
 
-    /// Run full comparative benchmark (WPG vs PNG vs JPEG vs WebP) with PSNR & SSIM metrics
+    /// Run full comparative benchmark (.wpg vs .webp vs .avif + PNG/JPEG) with PSNR & SSIM metrics
     Bench {
-        /// Input image path to benchmark
+        /// Input image path to benchmark (e.g. photo.jpg)
         #[arg(value_name = "INPUT")]
         input: PathBuf,
 
         /// Target quality (1..100)
         #[arg(short, long, default_value_t = 80)]
         quality: u8,
+
+        /// Encoding speed preset (1..10) applied across WPG, WebP, and AVIF
+        #[arg(short, long, default_value_t = 6)]
+        speed: u8,
+
+        /// Optional directory to save the 3 converted files (<stem>.wpg, <stem>.webp, <stem>.avif)
+        #[arg(short, long, value_name = "OUTPUT_DIR")]
+        output_dir: Option<PathBuf>,
     },
 
     /// Start the interactive Web Showcase & Viewer server
@@ -238,30 +246,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("========================================\n");
         }
 
-        Commands::Bench { input, quality } => {
-            println!("\nBenchmarking: {} (Target Quality: {})...", input.display(), quality);
+        Commands::Bench {
+            input,
+            quality,
+            speed,
+            output_dir,
+        } => {
+            let input_size_bytes = fs::metadata(&input).map(|m| m.len() as usize).unwrap_or(1).max(1);
+            println!(
+                "\nBenchmarking: {} ({} bytes, {:.2} KB) | Target Quality: {}, Speed: {}...",
+                input.display(),
+                input_size_bytes,
+                input_size_bytes as f64 / 1024.0,
+                quality,
+                speed
+            );
             let img = wpg::open_image_with_orientation(&input)?;
             let rgba = img.to_rgba8();
             let width = rgba.width();
             let height = rgba.height();
+            let total_pixels = (width as usize * height as usize).max(1) as f64;
+            let raw_rgb_bytes = (width as usize * height as usize * 3).max(1) as f64;
 
-            // Encode WPG
+            // 1. Encode & Decode WPG (.wpg)
             let mut opts = EncodeOptions::default();
             opts.quality = quality;
-            opts.speed = 6;
+            opts.speed = speed;
             let t0 = Instant::now();
             let wpg_bytes = WpgEncoder::encode(rgba.as_raw(), width, height, &opts)?;
             let wpg_time = t0.elapsed().as_secs_f64() * 1000.0;
+            let t_wpg_dec = Instant::now();
             let dec_wpg = WpgDecoder::decode(&wpg_bytes)?;
+            let wpg_dec_time = t_wpg_dec.elapsed().as_secs_f64() * 1000.0;
             let wpg_psnr = compute_psnr(rgba.as_raw(), &dec_wpg.rgba);
             let wpg_ssim = compute_ssim(rgba.as_raw(), &dec_wpg.rgba, width as usize, height as usize);
 
-            // Encode PNG
+            // Encode PNG (Lossless reference)
             let mut png_bytes = Vec::new();
             let png_enc = image::codecs::png::PngEncoder::new(&mut png_bytes);
             png_enc.write_image(rgba.as_raw(), width, height, image::ColorType::Rgba8.into())?;
 
-            // Encode JPEG
+            // Encode JPEG (Reference)
             let rgb = img.to_rgb8();
             let mut jpeg_bytes = Vec::new();
             let mut j_enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg_bytes, quality);
@@ -273,15 +298,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 (0.0, 0.0)
             };
 
-            // Encode WebP (Lossless)
+            // Encode WebP (Lossless VP8L)
             let mut webp_bytes = Vec::new();
             let w_enc = image::codecs::webp::WebPEncoder::new_lossless(&mut webp_bytes);
             let _ = w_enc.write_image(rgba.as_raw(), width, height, image::ColorType::Rgba8.into());
 
-            // Encode WebP (Lossy libwebp)
-            let lossy_webp_mem = webp::Encoder::from_rgba(rgba.as_raw(), width, height).encode(quality as f32);
-            let lossy_webp_bytes = lossy_webp_mem.to_vec();
-            let (lossy_webp_psnr, lossy_webp_ssim) = if let Some(dec) = webp::Decoder::new(&lossy_webp_bytes).decode() {
+            // 2. Encode & Decode WebP (.webp Lossy libwebp) with matching Quality & Speed
+            let webp_method = match speed.clamp(1, 10) {
+                1..=2 => 6,
+                3..=4 => 5,
+                5..=6 => 4,
+                7 => 3,
+                8 => 2,
+                9 => 1,
+                _ => 0,
+            };
+            let t_webp_enc = Instant::now();
+            let lossy_webp_bytes = {
+                let encoder = webp::Encoder::from_rgba(rgba.as_raw(), width, height);
+                if let Ok(mut cfg) = webp::WebPConfig::new() {
+                    cfg.lossless = 0;
+                    cfg.alpha_compression = 1;
+                    cfg.quality = quality as f32;
+                    cfg.method = webp_method;
+                    match encoder.encode_advanced(&cfg) {
+                        Ok(mem) => mem.to_vec(),
+                        Err(_) => encoder.encode(quality as f32).to_vec(),
+                    }
+                } else {
+                    encoder.encode(quality as f32).to_vec()
+                }
+            };
+            let webp_enc_time = t_webp_enc.elapsed().as_secs_f64() * 1000.0;
+            let t_webp_dec = Instant::now();
+            let dec_webp_opt = webp::Decoder::new(&lossy_webp_bytes).decode();
+            let webp_dec_time = t_webp_dec.elapsed().as_secs_f64() * 1000.0;
+            let (lossy_webp_psnr, lossy_webp_ssim) = if let Some(dec) = dec_webp_opt {
                 let dec_rgba = dec.to_image().to_rgba8();
                 (
                     compute_psnr(rgba.as_raw(), dec_rgba.as_raw()),
@@ -291,28 +343,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 (0.0, 0.0)
             };
 
-            // Encode AVIF
+            // 3. Encode & Decode AVIF (.avif) with matching Quality & Speed
             let mut avif_bytes = Vec::new();
+            let mut avif_enc_time = 0.0;
             let mut avif_alpha_size = 0;
             let mut avif_color_size = 0;
             {
+                let t_avif = Instant::now();
                 let slice: &[ravif::RGBA8] = unsafe {
                     std::slice::from_raw_parts(rgba.as_raw().as_ptr() as *const ravif::RGBA8, (width * height) as usize)
                 };
                 let img_ref = ravif::Img::new(slice, width as usize, height as usize);
                 let enc = ravif::Encoder::new()
                     .with_quality(quality as f32)
-                    .with_speed(6)
+                    .with_speed(speed.clamp(1, 10))
                     .with_bit_depth(ravif::BitDepth::Eight);
                 if let Ok(encoded) = enc.encode_rgba(img_ref) {
+                    avif_enc_time = t_avif.elapsed().as_secs_f64() * 1000.0;
                     avif_bytes = encoded.avif_file;
                     avif_alpha_size = encoded.alpha_byte_size;
                     avif_color_size = encoded.color_byte_size;
                 }
             }
 
+            let mut avif_dec_time = 0.0;
             let (avif_psnr, avif_ssim) = if !avif_bytes.is_empty() {
+                let t_avif_dec = Instant::now();
                 if let Ok(dec_rgba) = wpg::decode_avif_to_rgba(&avif_bytes, width as usize, height as usize, avif_alpha_size, avif_color_size) {
+                    avif_dec_time = t_avif_dec.elapsed().as_secs_f64() * 1000.0;
                     (
                         compute_psnr(rgba.as_raw(), &dec_rgba),
                         compute_ssim(rgba.as_raw(), &dec_rgba, width as usize, height as usize),
@@ -324,64 +382,120 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 (0.0, 0.0)
             };
 
-            println!("\n+--------------------+------------+--------+----------+--------+------------------+");
-            println!("| Format             | Size (B)   | bpp    | PSNR(dB) | SSIM   | vs PNG Baseline  |");
-            println!("+--------------------+------------+--------+----------+--------+------------------+");
+            if let Some(out_dir) = &output_dir {
+                fs::create_dir_all(out_dir)?;
+                let stem = input.file_stem().and_then(|s| s.to_str()).unwrap_or("bench");
+                let wpg_path = out_dir.join(format!("{}.wpg", stem));
+                let webp_path = out_dir.join(format!("{}.webp", stem));
+                let avif_path = out_dir.join(format!("{}.avif", stem));
+                fs::write(&wpg_path, &wpg_bytes)?;
+                fs::write(&webp_path, &lossy_webp_bytes)?;
+                if !avif_bytes.is_empty() {
+                    fs::write(&avif_path, &avif_bytes)?;
+                }
+                println!(
+                    "Saved converted files to {:?}: {}.wpg, {}.webp, {}.avif",
+                    out_dir, stem, stem, stem
+                );
+            }
+
+            println!("\n=== 3-Format Head-to-Head Benchmark (.wpg vs .webp vs .avif @ Q{}, S{}) ===", quality, speed);
+            println!("+----------------------+------------+----------+----------+--------+--------+----------+--------+-------------------+");
+            println!("| Format               | Size (B)   | vs Input | vs PNG   | bpp    | Ratio  | PSNR(dB) | SSIM   | Enc / Dec (ms)    |");
+            println!("+----------------------+------------+----------+----------+--------+--------+----------+--------+-------------------+");
             println!(
-                "| ✨ WPG (Our Format)| {:>10} | {:>6.3} | {:>8.2} | {:>6.4} | {:>15.1}% |",
+                "| .wpg (WPG Q{}, S{})    | {:>10} | {:>7.1}% | {:>7.1}% | {:>6.3} | {:>5.1}x | {:>8.2} | {:>6.4} | {:>7.1} / {:>6.1} |",
+                quality,
+                speed,
                 wpg_bytes.len(),
-                (wpg_bytes.len() as f64 * 8.0) / (width * height) as f64,
+                (1.0 - wpg_bytes.len() as f64 / input_size_bytes as f64) * -100.0,
+                (1.0 - wpg_bytes.len() as f64 / png_bytes.len() as f64) * -100.0,
+                (wpg_bytes.len() as f64 * 8.0) / total_pixels,
+                raw_rgb_bytes / (wpg_bytes.len().max(1) as f64),
                 wpg_psnr,
                 wpg_ssim,
-                (1.0 - wpg_bytes.len() as f64 / png_bytes.len() as f64) * -100.0
+                wpg_time,
+                wpg_dec_time
+            );
+            println!(
+                "| .webp (Lossy Q{}, S{}) | {:>10} | {:>7.1}% | {:>7.1}% | {:>6.3} | {:>5.1}x | {:>8.2} | {:>6.4} | {:>7.1} / {:>6.1} |",
+                quality,
+                speed,
+                lossy_webp_bytes.len(),
+                (1.0 - lossy_webp_bytes.len() as f64 / input_size_bytes as f64) * -100.0,
+                (1.0 - lossy_webp_bytes.len() as f64 / png_bytes.len() as f64) * -100.0,
+                (lossy_webp_bytes.len() as f64 * 8.0) / total_pixels,
+                raw_rgb_bytes / (lossy_webp_bytes.len().max(1) as f64),
+                lossy_webp_psnr,
+                lossy_webp_ssim,
+                webp_enc_time,
+                webp_dec_time
             );
             if !avif_bytes.is_empty() {
                 println!(
-                    "| AVIF (Standard Q{}) | {:>10} | {:>6.3} | {:>8.2} | {:>6.4} | {:>15.1}% |",
+                    "| .avif (Std Q{}, S{})   | {:>10} | {:>7.1}% | {:>7.1}% | {:>6.3} | {:>5.1}x | {:>8.2} | {:>6.4} | {:>7.1} / {:>6.1} |",
                     quality,
+                    speed,
                     avif_bytes.len(),
-                    (avif_bytes.len() as f64 * 8.0) / (width * height) as f64,
+                    (1.0 - avif_bytes.len() as f64 / input_size_bytes as f64) * -100.0,
+                    (1.0 - avif_bytes.len() as f64 / png_bytes.len() as f64) * -100.0,
+                    (avif_bytes.len() as f64 * 8.0) / total_pixels,
+                    raw_rgb_bytes / (avif_bytes.len().max(1) as f64),
                     avif_psnr,
                     avif_ssim,
-                    (1.0 - avif_bytes.len() as f64 / png_bytes.len() as f64) * -100.0
+                    avif_enc_time,
+                    avif_dec_time
                 );
             }
+            println!("+----------------------+------------+----------+----------+--------+--------+----------+--------+-------------------+");
             println!(
-                "| PNG (Lossless)     | {:>10} | {:>6.3} | {:>8.2} | {:>6.4} | {:>15}  |",
-                png_bytes.len(),
-                (png_bytes.len() as f64 * 8.0) / (width * height) as f64,
-                99.99,
-                1.0000,
-                "0.0%"
+                "| Input Source         | {:>10} | Baseline | {:>7.1}% | {:>6.3} | {:>5.1}x |   Source | 1.0000 |                 - |",
+                input_size_bytes,
+                (1.0 - input_size_bytes as f64 / png_bytes.len() as f64) * -100.0,
+                (input_size_bytes as f64 * 8.0) / total_pixels,
+                raw_rgb_bytes / (input_size_bytes as f64)
             );
             println!(
-                "| JPEG (Q{})         | {:>10} | {:>6.3} | {:>8.2} | {:>6.4} | {:>15.1}% |",
+                "| JPEG (Re-enc Q{})     | {:>10} | {:>7.1}% | {:>7.1}% | {:>6.3} | {:>5.1}x | {:>8.2} | {:>6.4} |                 - |",
                 quality,
                 jpeg_bytes.len(),
-                (jpeg_bytes.len() as f64 * 8.0) / (width * height) as f64,
+                (1.0 - jpeg_bytes.len() as f64 / input_size_bytes as f64) * -100.0,
+                (1.0 - jpeg_bytes.len() as f64 / png_bytes.len() as f64) * -100.0,
+                (jpeg_bytes.len() as f64 * 8.0) / total_pixels,
+                raw_rgb_bytes / (jpeg_bytes.len().max(1) as f64),
                 jpeg_psnr,
-                jpeg_ssim,
-                (1.0 - jpeg_bytes.len() as f64 / png_bytes.len() as f64) * -100.0
+                jpeg_ssim
             );
             println!(
-                "| WebP (Lossy Q{})    | {:>10} | {:>6.3} | {:>8.2} | {:>6.4} | {:>15.1}% |",
-                quality,
-                lossy_webp_bytes.len(),
-                (lossy_webp_bytes.len() as f64 * 8.0) / (width * height) as f64,
-                lossy_webp_psnr,
-                lossy_webp_ssim,
-                (1.0 - lossy_webp_bytes.len() as f64 / png_bytes.len() as f64) * -100.0
-            );
-            println!(
-                "| WebP (Lossless VP8L)| {:>10} | {:>6.3} | {:>8.2} | {:>6.4} | {:>15.1}% |",
+                "| WebP (Lossless VP8L) | {:>10} | {:>7.1}% | {:>7.1}% | {:>6.3} | {:>5.1}x |    99.99 | 1.0000 |                 - |",
                 webp_bytes.len(),
-                (webp_bytes.len() as f64 * 8.0) / (width * height) as f64,
-                99.99,
-                1.0000,
-                (1.0 - webp_bytes.len() as f64 / png_bytes.len() as f64) * -100.0
+                (1.0 - webp_bytes.len() as f64 / input_size_bytes as f64) * -100.0,
+                (1.0 - webp_bytes.len() as f64 / png_bytes.len() as f64) * -100.0,
+                (webp_bytes.len() as f64 * 8.0) / total_pixels,
+                raw_rgb_bytes / (webp_bytes.len().max(1) as f64)
             );
-            println!("+--------------------+------------+--------+----------+--------+------------------+\n");
-            println!("WPG Encode Time: {:.2} ms", wpg_time);
+            println!(
+                "| PNG (Lossless)       | {:>10} | {:>7.1}% |     0.0% | {:>6.3} | {:>5.1}x |    99.99 | 1.0000 |                 - |",
+                png_bytes.len(),
+                (1.0 - png_bytes.len() as f64 / input_size_bytes as f64) * -100.0,
+                (png_bytes.len() as f64 * 8.0) / total_pixels,
+                raw_rgb_bytes / (png_bytes.len().max(1) as f64)
+            );
+            println!("+----------------------+------------+----------+----------+--------+--------+----------+--------+-------------------+");
+
+            let vs_webp = (1.0 - wpg_bytes.len() as f64 / lossy_webp_bytes.len().max(1) as f64) * 100.0;
+            let vs_avif = if !avif_bytes.is_empty() {
+                (1.0 - wpg_bytes.len() as f64 / avif_bytes.len() as f64) * 100.0
+            } else {
+                0.0
+            };
+            println!(
+                "Summary: .wpg is {:.1}% vs .webp ({:+} B) | {:.1}% vs .avif ({:+} B)\n",
+                -vs_webp,
+                wpg_bytes.len() as isize - lossy_webp_bytes.len() as isize,
+                -vs_avif,
+                wpg_bytes.len() as isize - avif_bytes.len() as isize
+            );
         }
 
         Commands::Serve { port } => {

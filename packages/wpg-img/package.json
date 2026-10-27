@@ -1,6 +1,6 @@
 {
   "name": "wpg-img",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official <wpg-img> Web Component & Offline WebAssembly Decoder for WPG (Web Progressive Graphic) — Next-Gen Open Image Format",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -11,6 +11,7 @@
       "require": "./dist/index.cjs",
       "types": "./dist/index.d.ts"
     },
+    "./worker": "./dist/wpg-worker.js",
     "./wasm": "./wpg-decoder.wasm"
   },
   "files": [

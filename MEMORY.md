@@ -75,7 +75,7 @@ A `.wpg` file is organized sequentially into a fixed 16-byte header, followed by
 * **Layout:**
   - Bytes `0..11` (12 bytes): 4 RGB centroid colors derived via fast K-means clustering ($k=4$) on a downsampled 4x4 representation.
   - Bytes `12..15` (4 bytes): 16 2-bit spatial indices for the 4x4 grid ($16 \times 2 = 32 \text{ bits} = 4 \text{ bytes}$).
-* **Client Reconstruction:** Renders a 4x4 `<canvas>` in memory, maps each index to its RGB centroid, and scales with CSS `filter: blur(14px)`.
+* **Client Reconstruction:** The production `<wpg-img>` maps each index to its RGB centroid and paints a 4×4 SVG data-URI `<img>` with CSS `filter: blur(14px)`. The display canvas stays 4×4 until the decoded frame replaces the preview.
 
 ### 3.2 Parametric Film Grain Synthesis Engine
 * **The Problem:** Natural camera sensor noise triggers dense high-frequency DCT/ADST coefficients in AV1, consuming 20% to 35% of the total bit budget.
@@ -97,29 +97,34 @@ A `.wpg` file is organized sequentially into a fixed 16-byte header, followed by
 
 ## 4. WebAssembly & Web Component Architecture
 
-### 4.1 In-Memory GPU Decoding via `crates/wpg-wasm`
+### 4.1 Zero-Wasm Fast Path & In-Memory GPU Decoding via `crates/wpg-wasm`
 * Traditional AV1 decoders (`dav1d` / `rav1d`) cannot compile cleanly to `wasm32-unknown-unknown` without heavy POSIX/libc wrappers (~2 MB).
-* **The WPG Breakthrough:** The bundled 61 KB WebAssembly engine (`wpg-decoder.wasm`) uses `avif-serialize` to wrap the raw AV1 OBU in an ultra-lightweight ISOBMFF box hierarchy directly in WebAssembly memory (overhead: 0.005 ms).
-* It passes the synthesized bytes to the browser's native hardware-accelerated AV1 engine via:
+* **The WPG Breakthrough (2-Tier Client Architecture):**
+  1. **Zero-Wasm (0 KB) Pure-JS Fast Path for Mode 0:** Standard Mode 0 photographs are wrapped into a 242-byte ISOBMFF header (`wrapWpgMode0ToAvifJs`) and grain-synthesized (`applyFilmGrainJs`) directly in JavaScript inside `wpg-worker.js` with **0 KB of WebAssembly downloaded**.
+  2. **On-Demand Lazy Wasm (`wpg-decoder.wasm`, ~130 KB with LTO):** Only when an image uses Mode 1 (Palette), Mode 2 (Modular), `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY` does the worker fetch `wpg-decoder.wasm` (which includes pure-Rust `ruzstd`).
+* It passes the synthesized AVIF bytes to the browser's native hardware-accelerated AV1 engine via:
   ```javascript
   const blob = new Blob([avifBytes], { type: 'image/avif' });
   const bmp = await createImageBitmap(blob);
   ctx.drawImage(bmp, 0, 0);
   ```
-* **Result:** Full GPU hardware-accelerated AV1 decoding with only **61 KB of client WebAssembly**.
+* **Result:** **0 KB Wasm overhead** for >95% of web photographs, plus full offline RGBA decoding for palette, modular, and alpha assets.
 
-### 4.2 Web Component `<wpg-img>`
-* Custom HTML element registering `<wpg-img>`.
+### 4.2 Web Component `<wpg-img>` & 3-Format Benchmark Studio
+* `wpg-element.js` is an ES module. Load it with `<script type="module">`. The showcase server embeds it, `wpg-worker.js`, and `wpg-decoder.wasm` via `include_str!` / `include_bytes!` and serves `/wpg-element.js`, `/wpg-worker.js`, and `/wpg-decoder.wasm` with `Cache-Control: public, max-age=31536000, immutable`.
+* The showcase page features a **3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`)** with a `.jpg` drag-and-drop dropzone, podium cards, 1:1 split view, and a live `<wpg-img>` element that automatically previews `/api/latest.wpg`.
 * Lifecycle:
-  1. Sets aspect ratio immediately from the 16-byte header (zero layout shift).
-  2. Renders 16B micro-preview canvas with CSS blur.
-  3. Decodes AV1 bitstream via in-memory Wasm engine.
-  4. Synthesizes film grain on GPU canvas.
-  5. Smooth CSS crossfade from blur placeholder to native resolution.
+  1. `response.body.getReader()` accumulates chunks until 32 bytes are available, then stitches the header and micro-preview across chunk boundaries.
+  2. The 16-byte preview becomes a blurred SVG data-URI `<img>`. `width` / `height` set `aspect-ratio`. The display `<canvas>` stays 4×4 until the final frame.
+  3. `wpg-worker.js` decodes standard Mode 0 images via the 0-KB Wasm pure-JS ISOBMFF fast path (`wrapWpgMode0ToAvifJs` + `applyFilmGrainJs`), or lazily loads `wpg-decoder.wasm` on demand for Mode 1, Mode 2, `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY`. The frame returns with `postMessage(..., [bitmap])`. The main thread transfers a copy, so a worker failure leaves the original bytes intact.
+  4. Fallback order: worker, then main-thread JS/Wasm, then `POST` to `fallback-url` (default `/api/decode`; `"none"` skips it). A worker crash rejects the in-flight decode.
+  5. `loading="lazy"` keeps an `IntersectionObserver` (`rootMargin: 200px`). Leaving that margin cancels the decode, closes the `ImageBitmap`, and zeroes the canvas. The SVG preview remains. Re-entry fetches again.
+* SSR: `renderWpgImg()` emits Declarative Shadow DOM (`<template shadowrootmode="open">`) with the aspect-ratio box and SVG preview. It is safe to call from Node, Next.js, Nuxt, and SvelteKit.
+* Attributes: `src`, `alt`, `width`, `height`, `loading`, `wasm-url`, `worker-url`, `fallback-url`.
 
 ### 4.3 Standalone Offline Playground (`playground/wpg-bundle.js`)
-* For local offline testing directly via the `file:///` protocol (where browsers block `<script type="module">` and `fetch()` due to CORS), `playground/wpg-bundle.js` bundles the 61 KB Wasm binary as an embedded base64 string.
-* Exposes `.loadBytes(uint8Array)` for zero-network, in-memory decoding of dropped or picked files.
+* For local offline testing via `file:///` (where browsers block module scripts and `fetch()`), `playground/wpg-bundle.js` embeds the Wasm binary as base64 and exposes `.loadBytes(uint8Array)`.
+* That bundle still fetches with `arrayBuffer()` on the main thread. It does not include the ReadableStream client, the worker, or `renderWpgImg()`. The production client is `wpg-element.js`.
 
 ---
 
@@ -153,9 +158,9 @@ A `.wpg` file is organized sequentially into a fixed 16-byte header, followed by
   - Hero Feature Visual: 4.19 MB $\rightarrow$ **87.9 KB** (**-97.9%**)
   - Gallery (10 items): 8.69 MB $\rightarrow$ **993 KB** (**-88.6%**)
 * **Key Architecture Rules Enforced:**
-  1. `<wpg-img>` must support native `loading="lazy"` with `IntersectionObserver` (`rootMargin: '200px 0px'`) to avoid concurrent network saturation at initial load.
-  2. Scripts must load with `defer` (`<script src="/js/wpg-bundle.js" defer>`).
-  3. `loadWpg(url)` must enforce deduplication (`this._loadedUrl === url`) to prevent duplicate HTTP requests from concurrent callbacks.
+  1. `<wpg-img loading="lazy">` keeps an `IntersectionObserver` (`rootMargin: '200px 0px'`). It defers the first fetch and releases the canvas and `ImageBitmap` when the image leaves that margin.
+  2. The production script is an ES module: `<script type="module" src="/wpg-element.js"></script>`.
+  3. `loadWpg(url)` skips a repeat of the same `src`. A cache-busting query (`?t=`) starts a new load.
   4. Never place inline `style="background-image:url('...')"` in client-side JS template `<noscript>` tags, as browser CSS parsers speculatively fetch the legacy fallback asset.
 
 ---
@@ -169,16 +174,18 @@ wpg/
 ├── DOCUMENTATION.md         # Comprehensive architectural and technical specification
 ├── SPECIFICATION.md         # Official Binary Format Specification v1.0
 ├── MEMORY.md                # Permanent single-source-of-truth project memory
-├── wpg-decoder.wasm         # Standalone 61 KB WebAssembly client decoder
-├── wpg-element.js           # Native Web Component (<wpg-img>)
+├── wpg-decoder.wasm         # Standalone on-demand WebAssembly client decoder (~130 KB with LTO)
+├── wpg-element.js           # <wpg-img> ESM client (stream, worker pool, SSR)
+├── wpg-worker.js            # Off-thread Wasm decode and film grain
 ├── crates/
 │   ├── wpg-wasm/            # Pure Wasm crate (wasm32-unknown-unknown, zero libc)
 │   └── wpg-thumb/           # Native Windows Shell Thumbnail Provider COM DLL (IThumbnailProvider)
 ├── packages/
 │   └── wpg-img/             # NPM package distribution (TypeScript types, ESM, Wasm)
 │       ├── package.json     # wpg-img@1.0.0
-│       ├── dist/index.js    # ESM module
-│       ├── dist/index.d.ts  # TypeScript types
+│       ├── dist/index.js    # ESM client (same implementation as ../../wpg-element.js)
+│       ├── dist/wpg-worker.js
+│       ├── dist/index.d.ts  # TypeScript types, including renderWpgImg()
 │       └── README.md        # NPM package documentation
 ├── playground/              # Standalone local testing environment
 │   ├── input/               # Drop area for test images

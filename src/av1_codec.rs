@@ -22,13 +22,14 @@ pub fn quality_to_quantizer(quality: u8) -> usize {
 pub struct Av1Codec;
 
 impl Av1Codec {
-    /// Encode YUV planes to raw AV1 OBU bitstream using rav1e
+    /// Encode YUV planes to raw AV1 OBU bitstream using rav1e with still-image & multi-tile optimizations
     pub fn encode_intra(
         planes: &YuvPlanes,
         quality: u8,
         speed: u8,
         tune_ssim: bool,
     ) -> io::Result<Vec<u8>> {
+        use rav1e::config::SpeedSettings;
         use rav1e::prelude::*;
 
         let chroma_sampling = match planes.subsampling {
@@ -37,22 +38,78 @@ impl Av1Codec {
             ColorSubsampling::Yuv444 | ColorSubsampling::Rgb => ChromaSampling::Cs444,
         };
 
+        let clamped_speed = speed.clamp(1, 10);
+        let q = quality_to_quantizer(quality);
+        let low_quality = q < quality_to_quantizer(55);
+        let high_quality = q > quality_to_quantizer(80);
+
+        // Configure SpeedSettings specifically for single-frame still images (disables video lookahead & motion search overhead)
+        let mut speed_settings = SpeedSettings::from_preset(clamped_speed);
+        speed_settings.multiref = false;
+        speed_settings.rdo_lookahead_frames = 1;
+        speed_settings.scene_detection_mode = SceneDetectionSpeed::None;
+        speed_settings.motion.include_near_mvs = false;
+        speed_settings.motion.use_satd_subpel = false;
+        speed_settings.partition.encode_bottomup = clamped_speed <= 2;
+        speed_settings.sgr_complexity = if clamped_speed <= 2 {
+            SGRComplexityLevel::Full
+        } else {
+            SGRComplexityLevel::Reduced
+        };
+        speed_settings.transform.rdo_tx_decision = clamped_speed <= 4 && !high_quality;
+        speed_settings.transform.reduced_tx_set = clamped_speed == 4 || clamped_speed >= 9;
+        speed_settings.prediction.fine_directional_intra = clamped_speed <= 6;
+        speed_settings.fast_deblock = clamped_speed >= 7 && !high_quality;
+        speed_settings.lrf = low_quality && clamped_speed <= 8;
+        speed_settings.cdef = low_quality && clamped_speed <= 9;
+        speed_settings.prediction.prediction_modes = if clamped_speed <= 1 {
+            PredictionModesSetting::ComplexAll
+        } else {
+            PredictionModesSetting::Simple
+        };
+
+        let (min_b, max_b) = match clamped_speed {
+            1..=4 => (BlockSize::BLOCK_4X4, BlockSize::BLOCK_16X16),
+            5..=8 => (BlockSize::BLOCK_8X8, BlockSize::BLOCK_16X16),
+            _ => (BlockSize::BLOCK_16X16, BlockSize::BLOCK_16X16),
+        };
+        speed_settings.partition.partition_range = PartitionRange::new(min_b, max_b);
+
+        let hw_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        let min_tile_dim: usize = match clamped_speed {
+            1 => 2048,
+            2 => 1024,
+            3 => 512,
+            4 => 256,
+            _ => 128,
+        } * if high_quality { 2 } else { 1 };
+        let tiles = hw_threads
+            .min((planes.y_width * planes.y_height) / (min_tile_dim * min_tile_dim).max(1))
+            .max(1);
+
         let mut enc_cfg = EncoderConfig::default();
         enc_cfg.width = planes.y_width;
         enc_cfg.height = planes.y_height;
-        enc_cfg.speed_settings = SpeedSettings::from_preset(speed.clamp(1, 10));
+        enc_cfg.speed_settings = speed_settings;
         enc_cfg.tune = if tune_ssim { Tune::Psnr } else { Tune::Psychovisual };
         enc_cfg.chroma_sampling = chroma_sampling;
+        enc_cfg.pixel_range = PixelRange::Full;
+        enc_cfg.color_description = Some(ColorDescription {
+            transfer_characteristics: TransferCharacteristics::SRGB,
+            color_primaries: ColorPrimaries::BT709,
+            matrix_coefficients: MatrixCoefficients::BT709,
+        });
+        enc_cfg.enable_timing_info = false;
         enc_cfg.still_picture = true;
-
-        // Calibrated non-linear perceptual quality curve (AVIF / ravif reference)
-        let q = quality_to_quantizer(quality);
+        enc_cfg.tiles = tiles;
         enc_cfg.quantizer = q;
         enc_cfg.min_quantizer = q as u8;
 
         let cfg = Config::new()
             .with_encoder_config(enc_cfg)
-            .with_threads(4);
+            .with_threads(hw_threads);
 
         let mut ctx: Context<u8> = cfg.new_context().map_err(|e| {
             io::Error::new(io::ErrorKind::Other, format!("Failed to create rav1e context: {:?}", e))
@@ -117,7 +174,7 @@ impl Av1Codec {
             dav1d_default_settings(NonNull::new(settings.as_mut_ptr()).unwrap());
         }
         let mut settings = unsafe { settings.assume_init() };
-        settings.n_threads = 1;
+        settings.n_threads = 2;
         settings.max_frame_delay = 1;
 
         let mut ctx_opt: Option<Dav1dContext> = None;
