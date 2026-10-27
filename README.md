@@ -1,4 +1,4 @@
-# ⚡ WPG (Web Progressive Graphic) — Next-Gen Image Format
+# WPG (Web Progressive Graphic) — Next-Gen Image Format
 
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![AV1 Intra](https://img.shields.io/badge/core-AV1%20Intra-blue.svg)](https://aomediacodec.github.io/av1-spec/)
@@ -21,7 +21,7 @@ Built on state-of-the-art **AV1 Intra** coding, WPG fundamentally resolves the c
 
 ---
 
-## 🎯 What Does WPG Stand For?
+## What Does WPG Stand For?
 
 In the history of the World Wide Web, iconic three-letter acronyms define every era of visual media:
 
@@ -45,7 +45,7 @@ Every letter of **WPG** reflects a foundational architectural commitment:
 
 ---
 
-## 🌟 Key Innovations & Superiority over AVIF
+## Key Innovations & Superiority over AVIF
 
 | Feature | Standard AVIF (.avif) | WPG (.wpg) | WPG Advantage |
 |---|---|---|---|
@@ -58,7 +58,7 @@ Every letter of **WPG** reflects a foundational architectural commitment:
 
 ---
 
-## 📊 Real-World Benchmark Verification
+## Real-World Benchmark Verification
 
 All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding** directly into RGBA memory buffers.
 
@@ -67,7 +67,7 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 
 | Format | File Size | Bits Per Pixel (bpp) | PSNR | SSIM | vs AVIF Baseline |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (AV1 Enhanced + Grain)** | **434.0 KB** | **0.296** | **34.5 dB** | **0.9014** | **-108.8 KB (-20.0%)** 🚀 |
+| **WPG (AV1 Enhanced + Grain)** | **434.0 KB** | **0.296** | **34.5 dB** | **0.9014** | **-108.8 KB (-20.0%)** |
 | **AVIF (Standard ravif Q70)** | 542.8 KB | 0.371 | 37.1 dB | 0.9317 | Baseline AVIF |
 | **JPEG (Q70)** | 1,373.4 KB | 0.935 | 36.8 dB | 0.9782 | +216.5% (+939 KB) |
 | **PNG (Uncompressed RGB)** | 20,965.9 KB | 14.280 | Lossless | 1.0000 | +4,730% |
@@ -81,7 +81,7 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 
 | Format | File Size | vs Input (`.jpg`) | vs PNG Baseline | bpp | PSNR | SSIM | Encode / Decode Time |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (`.wpg` Q80, S6)** | **70.99 KB** (`72,694 B`) | **-50.1%** 🚀 | **-95.2%** | **0.563** | **39.87 dB** | **0.9802** | **1,292.6 / 402.1 ms** |
+| **WPG (`.wpg` Q80, S6)** | **70.99 KB** (`72,694 B`) | **-50.1%** | **-95.2%** | **0.563** | **39.87 dB** | **0.9802** | **1,292.6 / 402.1 ms** |
 | **AVIF (`.avif` Std Q80, S6)** | 72.41 KB (`74,149 B`) | -49.1% | -95.1% | 0.575 | 40.05 dB | 0.9818 | 2,773.3 / 271.5 ms |
 | **WebP (`.webp` Lossy Q80, S6)** | 87.82 KB (`89,928 B`) | -38.3% | -94.0% | 0.697 | 39.18 dB | 0.9794 | 225.2 / 22.4 ms |
 | **Input Source (`.jpg`)** | 142.24 KB (`145,650 B`) | Baseline | -90.3% | 1.129 | Source | 1.0000 | — |
@@ -95,7 +95,7 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 
 | Format | File Size | vs Input (`.jpg`) | bpp | Compression Ratio | PSNR | SSIM | Encode / Decode Time |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (`.wpg` Q80, S6)** | **1,940 B** (`1.89 KB`) | **-85.7%** 🚀 | **0.202** | **118.8 : 1** | **39.68 dB** | **0.9360** | **173.0 / 28.7 ms** |
+| **WPG (`.wpg` Q80, S6)** | **1,940 B** (`1.89 KB`) | **-85.7%** | **0.202** | **118.8 : 1** | **39.68 dB** | **0.9360** | **173.0 / 28.7 ms** |
 | **AVIF (`.avif` Std Q80, S6)** | 2,626 B (`2.56 KB`) | -80.7% | 0.274 | 87.7 : 1 | 40.33 dB | 0.9389 | 322.4 / 24.1 ms |
 | **WebP (`.webp` Lossy Q80, S6)** | 2,904 B (`2.84 KB`) | -78.7% | 0.302 | 79.3 : 1 | 39.47 dB | 0.9392 | 23.9 / 1.4 ms |
 | **Input Source (`.jpg`)** | 13,610 B (`13.29 KB`) | Baseline | 1.418 | 16.9 : 1 | Source | 1.0000 | — |
@@ -108,7 +108,7 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 
 | Format | File Size | Bits Per Pixel (bpp) | PSNR | SSIM | vs PNG Baseline |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (Our Format)** | **2,372 B** | **0.290** | **31.96 dB** | **0.9958** | **-61.9%** 🚀 |
+| **WPG (Our Format)** | **2,372 B** | **0.290** | **31.96 dB** | **0.9958** | **-61.9%** |
 | **WebP (Lossy Q80)** | 2,142 B | 0.261 | 32.05 dB | 0.9961 | -65.6% |
 | **WebP (Lossless VP8L)** | 2,150 B | 0.262 | 99.99 dB | 1.0000 | -65.4% |
 | **AVIF (Standard Q80)** | 2,817 B | 0.344 | 42.70 dB | 0.9969 | -54.7% |
@@ -117,12 +117,12 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 
 ---
 
-### 5. 🌐 Production Deployment Case Study: any2prompt.com (96/100 Mobile PageSpeed)
+### 5. Production Deployment Case Study: any2prompt.com (96/100 Mobile PageSpeed)
 *Bitstream metrics verified in production on a live AI application ([any2prompt.com](https://any2prompt.com)).*
 
 | Metric / Asset Group | Before (Legacy JPG/PNG) | With WPG & `<wpg-img>` | Real-World Impact |
 |---|:---:|:---:|:---:|
-| **Google PageSpeed Mobile Score** | **74 - 75** (Orange) | **96 / 100** (Emerald) 🚀 | **+21 Points jump into top 1–2% globally** |
+| **Google PageSpeed Mobile Score** | **74 - 75** (Orange) | **96 / 100** (Emerald) | **+21 Points jump into top 1–2% globally** |
 | **Hero Feature Visual** | 4.19 MB | **87.9 KB** | **-97.9%** (47.7x reduction) |
 | **Interactive Gallery Assets** | 8.69 MB (10 photos) | **993 KB** | **-88.6%** (~7.7 MB bandwidth saved) |
 | **Cumulative Layout Shift (CLS)** | 0.01 | **0.00** | **0.000 (Flawless Zero-CLS)** |
@@ -133,7 +133,7 @@ All metrics are computed from **actual, bitstream-level pixel-by-pixel decoding*
 
 ---
 
-## ⚡ Web Component `<wpg-img>` & Zero-Wasm Fast Path
+## Web Component `<wpg-img>` & Zero-Wasm Fast Path
 
 WPG ships with a drop-in native Web Component `<wpg-img>` that decodes standard Mode 0 photographs via a **0 KB Wasm pure-JS ISOBMFF fast path** inside a dedicated Web Worker, and lazily loads the **130 KB WebAssembly decoder (`wpg-decoder.wasm`)** on demand only when an image uses Palette mode, Modular lossless mode, `FLAG_ALPHA`, or `FLAG_SECONDARY_ENTROPY`.
 
@@ -200,20 +200,20 @@ import 'wpg-img';
 
 ---
 
-## 🔍 SEO & Core Web Vitals Superiority
+## SEO & Core Web Vitals Superiority
 
 Images account for over **60% of total web page weight** and are the leading cause of poor mobile Google PageSpeed scores, slow Largest Contentful Paint (LCP), and layout shifts. WPG is engineered from the ground up to achieve **100/100 Mobile Performance** and perfect Core Web Vitals.
 
-### 1. 📐 Flawless Cumulative Layout Shift (CLS: 0.000)
+### 1. Flawless Cumulative Layout Shift (CLS: 0.000)
 * **The Problem:** Modern search engines (Google Search, Discover) heavily penalize websites when layout elements jump during image asset loading.
 * **The WPG Guarantee:** Thanks to WPG's sequential binary layout, `<wpg-img>` extracts the image dimensions from the 16-byte fixed header in **< 0.05 ms**—long before full network payloads arrive. It automatically allocates the exact aspect-ratio bounding box, guaranteeing a **CLS of 0.000**.
 * **Instant Visual Engagement:** The embedded 16-byte micro-preview renders as a color-matched blurred SVG as soon as those bytes arrive, before the rest of the file.
 
-### 2. ⚡ Accelerated Largest Contentful Paint (LCP)
+### 2. Accelerated Largest Contentful Paint (LCP)
 * WPG delivers **20% to 35% smaller file sizes than AVIF** on camera photographs (via Parametric Film Grain Synthesis) and **up to 68% smaller than legacy JPEG**.
 * High-impact hero imagery loads and renders dramatically faster on 3G/4G/5G mobile connections, moving LCP into the top 10% bracket globally.
 
-### 3. 🤖 Googlebot & Search Engine Indexing
+### 3. Googlebot & Search Engine Indexing
 * Modern search crawlers (Googlebot, Bingbot) run full headless Chromium browsers that execute JavaScript and render custom Web Components.
 * `<wpg-img>` surfaces standard `alt` text to the accessibility and DOM trees, ensuring complete search engine parity and top-tier Google Image Search indexing:
   ```html
@@ -221,7 +221,7 @@ Images account for over **60% of total web page weight** and are the leading cau
   </wpg-img>
   ```
 
-### 4. 🌐 Universal Social Sharing & No-JS Fallback Pattern
+### 4. Universal Social Sharing & No-JS Fallback Pattern
 Non-browser unfurl bots (such as Twitter/X, WhatsApp, LinkedIn, Facebook, and Pinterest scrapers) do not execute JavaScript. WPG seamlessly accommodates these bots by pairing OpenGraph metadata with semantic `<noscript>` tags:
 
 ```html
@@ -245,7 +245,7 @@ Non-browser unfurl bots (such as Twitter/X, WhatsApp, LinkedIn, Facebook, and Pi
 
 ---
 
-## 🚀 CLI Quickstart (`wpg`)
+## CLI Quickstart (`wpg`)
 
 Compiled release binaries are located at `target/release/wpg.exe`:
 
@@ -322,16 +322,16 @@ Convert entire image folders (`.png`, `.jpg`, `.jpeg`, `.webp`) into `.wpg` with
 
 ---
 
-## 🪟 Windows Desktop Integration & Shell Thumbnail Provider
+## Windows Desktop Integration & Shell Thumbnail Provider
 
 WPG provides first-class native Windows OS integration without requiring administrative elevation (written cleanly into `HKCU:\Software\Classes`):
 
-### 🖼️ Live Windows Explorer Thumbnail Provider (`wpg_thumb.dll`)
+### Live Windows Explorer Thumbnail Provider (`wpg_thumb.dll`)
 * Windows Explorer automatically displays **live image previews** for `.wpg` files in Extra Large, Large, Medium, and Small icon views, as well as the Windows Preview Pane!
 * Implements the high-performance Windows Shell COM COM interface `IThumbnailProvider` and `IInitializeWithFile` in native Rust.
 * Fast, lightweight, and hardware-accelerated: parses the AV1 bitstream on-demand and returns a 32-bit ARGB Device-Independent Bitmap (DIB).
 
-### 🖥️ High-Performance Desktop Viewer (`wpg-view.exe`)
+### High-Performance Desktop Viewer (`wpg-view.exe`)
 * **Instant Start (< 10 ms):** Ultra-lean pure Win32 GDI double-buffered canvas with modern dark mode styling (`DwmSetWindowAttribute`).
 * **Interactive Navigation:** Mouse wheel zoom (anchored to cursor position), drag-to-pan, and double-click to fit.
 * **Directory Browsing:** Press `Left Arrow` / `Right Arrow` or `Space` / `Backspace` to cycle through all `.wpg` files in the current folder.
@@ -339,7 +339,7 @@ WPG provides first-class native Windows OS integration without requiring adminis
 * **Fullscreen & HUD:** Toggle fullscreen with `F` / `F11`, and show/hide the HUD overlay (dimensions, compression ratio, zoom level) with `I`.
 * **Drag-and-Drop:** Drag any `.wpg` file directly onto the viewer window to view it immediately.
 
-### 🖱️ Right-Click Context Menu Options
+### Right-Click Context Menu Options
 Right-clicking any `.wpg` file in Windows Explorer provides:
 1. **Open with WPG Viewer** — Instantly views the image in the native viewer.
 2. **Convert to PNG** — Decodes the `.wpg` file directly into a `.png` next to it.
@@ -347,7 +347,7 @@ Right-clicking any `.wpg` file in Windows Explorer provides:
 
 ---
 
-## 📦 NPM Package (`wpg-img`)
+## NPM Package (`wpg-img`)
 
 For modern web projects and frontend frameworks:
 
@@ -375,7 +375,7 @@ document.getElementById('my-img').src = imgUrl;
 
 ---
 
-## 💻 Standalone Binary Installers
+## Standalone Binary Installers
 
 Install the `wpg` CLI tool directly without building from source:
 
@@ -391,7 +391,7 @@ curl -fsSL https://raw.githubusercontent.com/wpg-format/wpg/main/scripts/install
 
 ---
 
-## 🏗️ Architecture & Project Structure
+## Architecture & Project Structure
 
 ```
 wpg/
@@ -434,7 +434,7 @@ wpg/
 
 ---
 
-## 🛠️ Build from Source
+## Build from Source
 
 Prerequisites: [Rust & Cargo](https://rustup.rs/) installed:
 
@@ -451,7 +451,7 @@ cargo test --release
 
 ---
 
-## 📜 License, Disambiguation & Acknowledgments
+## License, Disambiguation & Acknowledgments
 
 * **License:** WPG is open-source and royalty-free under the **MIT License**.
 * **Disambiguation:** *Web Progressive Graphic* (`.wpg`) is an open web image standard and is completely unaffiliated with legacy 1980s WordPerfect Graphics. In modern computing, file extensions are categorized by context, MIME type (`image/wpg`), and magic byte headers (`WPG\x01`).

@@ -422,7 +422,7 @@ The real-world efficacy of WPG was verified in production on an active AI prompt
 
 | Metric / Asset Group | Before (Legacy JPG/PNG) | With WPG & `<wpg-img>` | Real-World Impact |
 |---|:---:|:---:|:---:|
-| **Google PageSpeed Mobile Score** | **74 - 75** (Orange) | **96 / 100** (Emerald) 🚀 | **+21 Points jump into top 1–2% globally** |
+| **Google PageSpeed Mobile Score** | **74 - 75** (Orange) | **96 / 100** (Emerald) | **+21 Points jump into top 1–2% globally** |
 | **Hero Feature Visual** | 4.19 MB | **87.9 KB** | **-97.9%** (47.7x reduction) |
 | **Interactive Gallery Assets** | 8.69 MB (10 photos) | **993 KB** | **-88.6%** (~7.7 MB bandwidth saved) |
 | **Cumulative Layout Shift (CLS)** | 0.01 | **0.00** | **0.000 (Flawless Zero-CLS)** |

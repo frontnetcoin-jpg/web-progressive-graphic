@@ -205,7 +205,7 @@
 <body>
   <div class="container">
     <header>
-      <h1>⚡ WPG Local Testing Playground</h1>
+      <h1>WPG Local Testing Playground</h1>
       <p class="subtitle">Experience offline WebAssembly decoding & 16-byte zero-CLS micro-previews</p>
       <div class="badge-row">
         <span class="badge" id="env-badge">Detecting...</span>
@@ -219,29 +219,29 @@
     <div class="grid">
       <!-- Card 1: Sample WPG Element -->
       <div class="card">
-        <h2>🖼️ Output Sample Test</h2>
+        <h2>Output Sample Test</h2>
         <p class="desc">Loads the local encoded sample image using the <code>&lt;wpg-img&gt;</code> element.</p>
         <div class="preview-box">
           <wpg-img id="sample-wpg" src="output/sample.wpg" alt="Sample WPG Image"></wpg-img>
         </div>
         <div class="file-input-wrapper">
-          <button class="btn btn-secondary" onclick="reloadSample()">🔄 Reload Preview</button>
+          <button class="btn btn-secondary" onclick="reloadSample()">Reload Preview</button>
           <span style="font-size: 0.8rem; color: var(--text-muted);">Watch the instant 16B blur cross-fade</span>
         </div>
       </div>
 
       <!-- Card 2: Interactive Custom WPG Inspector -->
       <div class="card">
-        <h2>🔬 Inspect Any Local .wpg File</h2>
+        <h2>Inspect Any Local .wpg File</h2>
         <p class="desc">Pick or drop any <code>.wpg</code> file to decode in-memory via client-side WebAssembly.</p>
         <div class="preview-box" id="drop-area">
           <wpg-img id="custom-wpg" alt="Custom WPG Preview"></wpg-img>
           <div id="drop-hint">
-            📁 Drop any <b>.wpg</b> file here<br><span style="font-size: 0.8rem; opacity: 0.7;">or click Choose .wpg File below</span>
+             Drop any <b>.wpg</b> file here<br><span style="font-size: 0.8rem; opacity: 0.7;">or click Choose .wpg File below</span>
           </div>
         </div>
         <div class="file-input-wrapper">
-          <label class="btn" for="wpg-file-input">📂 Choose .wpg File</label>
+          <label class="btn" for="wpg-file-input">Choose .wpg File</label>
           <input type="file" id="wpg-file-input" accept=".wpg">
         </div>
 
@@ -259,9 +259,9 @@
     </div>
 
     <div class="footer-links">
-      <a href="http://localhost:3000" target="_blank">🌐 Open Showcase GUI (Port 3000)</a>
-      <a href="../README.md" target="_blank">📖 Read Full README</a>
-      <a href="https://github.com/frontnetcoin-jpg/web-progressive-graphic" target="_blank">⭐ GitHub Repository</a>
+      <a href="http://localhost:3000" target="_blank">Open Showcase GUI (Port 3000)</a>
+      <a href="../README.md" target="_blank">Read Full README</a>
+      <a href="https://github.com/frontnetcoin-jpg/web-progressive-graphic" target="_blank">GitHub Repository</a>
     </div>
   </div>
 
@@ -271,10 +271,10 @@
     const envBadge = document.getElementById('env-badge');
     const isFileProto = location.protocol === 'file:';
     if (isFileProto) {
-      envBadge.textContent = '⚡ Offline File Mode (Embedded Wasm)';
+      envBadge.textContent = 'Offline File Mode (Embedded Wasm)';
       envBadge.className = 'badge badge-success';
     } else {
-      envBadge.textContent = '🌐 HTTP Server Mode';
+      envBadge.textContent = 'HTTP Server Mode';
       envBadge.className = 'badge badge-success';
     }
 

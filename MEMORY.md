@@ -1,4 +1,4 @@
-# 🧠 WPG (Web Progressive Graphic) — Master Project Memory & Architecture Guide
+# WPG (Web Progressive Graphic) — Master Project Memory & Architecture Guide
 
 > **Permanent Single-Source-of-Truth Memory for the WPG Open-Source Format**  
 > *Last Updated: October 2026 | Version: 1.0.0*

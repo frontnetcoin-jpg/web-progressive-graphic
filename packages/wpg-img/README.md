@@ -1,4 +1,4 @@
-# ⚡ WPG (Web Progressive Graphic) — `<wpg-img>`
+# WPG (Web Progressive Graphic) — `<wpg-img>`
 
 > **Official `<wpg-img>` Web Component & Offline WebAssembly Engine for WPG (Web Progressive Graphic)**  
 > *Engineered to join the open web standards lineage alongside PNG and SVG.*
@@ -12,7 +12,7 @@
 
 ---
 
-## 🎯 What Does WPG Stand For?
+## What Does WPG Stand For?
 
 In the history of the World Wide Web, iconic three-letter acronyms define every era of visual media:
 
@@ -36,7 +36,7 @@ Every letter of **WPG** reflects a foundational architectural commitment:
 
 ---
 
-## 🌟 Why WPG? The Problems We Solve for the Modern Web
+## Why WPG? The Problems We Solve for the Modern Web
 
 Modern web performance is bottlenecked by imagery. For years, the industry was caught between ancient JPEG (heavy), WebP (15-year-old architecture), and AVIF (modern compression, but crippled by legacy container bloat and sensor noise).
 
@@ -49,26 +49,26 @@ Here are the **three fundamental problems** WPG solves for developers and web ap
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │                                 THE WPG ADVANTAGE                                       │
 │                                                                                         │
-│   ❌ AVIF / ISOBMFF:  [400–800B Container Boxes] + [Sensor Noise Tax] + [Layout Shift] │
-│   ✅ WPG Format:      [16B Lean Header] + [Film Grain Synthesis] + [16B Zero-CLS Preview]│
+│   AVIF / ISOBMFF:  [400–800B Container Boxes] + [Sensor Noise Tax] + [Layout Shift]     │
+│   WPG Format:      [16B Lean Header] + [Film Grain Synthesis] + [16B Zero-CLS Preview]  │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. 🪓 Eradicating Container Bloat (Saving 400–800 Bytes per Image)
+### 1. Eradicating Container Bloat (Saving 400–800 Bytes per Image)
 * **The Problem:** Standard AVIF wraps simple static intra frames in hundreds of bytes of legacy **ISOBMFF (HEIF / ISO/IEC 14496-12)** nested boxes (`ftyp`, `meta`, `hdlr`, `pitm`, `iloc`, `iinf`, `ipco`, `mdat`). For modern web applications loading hundreds of thumbnails, avatars, product grids, and UI icons (1 KB to 10 KB), container overhead accounts for **20% to 50% of the entire file weight**.
 * **The WPG Fix:** A fixed **16-byte binary container** (`WPG\x01`). Zero nested boxes, zero bloat. Every single byte over the wire carries visual information.
 
-### 2. ⚡ Zero Cumulative Layout Shift (CLS) in < 0.05 ms
+### 2. Zero Cumulative Layout Shift (CLS) in < 0.05 ms
 * **The Problem:** Modern Core Web Vitals heavily penalize Cumulative Layout Shift (CLS). Conventional approaches force developers to either bundle external blurhash/LQIP strings (bloating HTML payloads) or endure layout jumping while waiting for full image decoding.
 * **The WPG Fix:** An integrated **16-byte instant micro-preview** block. By extracting 4 K-means centroid colors (12 bytes) and a 4x4 spatial index grid (4 bytes), any browser canvas or decoder renders an instant, color-accurate blurred placeholder in **less than 0.05 milliseconds** before the primary bitstream has even finished streaming.
 
-### 3. 🎞️ Parametric Film Grain Synthesis (+20% to +35% Higher Compression)
+### 3. Parametric Film Grain Synthesis (+20% to +35% Higher Compression)
 * **The Problem:** Real-world smartphone and DSLR photographs contain natural camera sensor noise. Frequency-domain transform codecs (DCT/ADST) waste 20% to 35% of their bit budget attempting to encode this random noise as high-frequency coefficients.
 * **The WPG Fix:** The WPG encoder uses Laplacian variance analysis to separate noise from true image details, applies subtle edge-preserving smoothing to the base frame, and stores 8 bytes of parametric grain metadata. On the client, a deterministic Xorshift32 PRNG reconstructs natural grain in real time directly on the GPU canvas. **Result: 20% to 35% smaller file sizes with indistinguishable visual fidelity.**
 
 ---
 
-## 📊 Real-World Benchmark Verification (Q80, Speed 6)
+## Real-World Benchmark Verification (Q80, Speed 6)
 
 Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`) with 100% independent bitstream-level decoding:
 
@@ -76,7 +76,7 @@ Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avi
 
 | Format | File Size | vs Input (`.jpg`) | bpp | PSNR | SSIM | Encode / Decode Time |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (`.wpg` Q80, S6)** | **70.99 KB** (`72,694 B`) | **-50.1%** 🚀 | **0.563** | **39.87 dB** | **0.9802** | **1,292.6 / 402.1 ms** |
+| **WPG (`.wpg` Q80, S6)** | **70.99 KB** (`72,694 B`) | **-50.1%** | **0.563** | **39.87 dB** | **0.9802** | **1,292.6 / 402.1 ms** |
 | **AVIF (`.avif` Std Q80, S6)** | 72.41 KB (`74,149 B`) | -49.1% | 0.575 | 40.05 dB | 0.9818 | 2,773.3 / 271.5 ms |
 | **WebP (`.webp` Lossy Q80, S6)** | 87.82 KB (`89,928 B`) | -38.3% | 0.697 | 39.18 dB | 0.9794 | 225.2 / 22.4 ms |
 
@@ -84,7 +84,7 @@ Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avi
 
 | Format | File Size | vs Input (`.jpg`) | bpp | PSNR | SSIM | Encode / Decode Time |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (`.wpg` Q80, S6)** | **1,940 B** (`1.89 KB`) | **-85.7%** 🚀 | **0.202** | **39.68 dB** | **0.9360** | **173.0 / 28.7 ms** |
+| **WPG (`.wpg` Q80, S6)** | **1,940 B** (`1.89 KB`) | **-85.7%** | **0.202** | **39.68 dB** | **0.9360** | **173.0 / 28.7 ms** |
 | **AVIF (`.avif` Std Q80, S6)** | 2,626 B (`2.56 KB`) | -80.7% | 0.274 | 40.33 dB | 0.9389 | 322.4 / 24.1 ms |
 | **WebP (`.webp` Lossy Q80, S6)** | 2,904 B (`2.84 KB`) | -78.7% | 0.302 | 39.47 dB | 0.9392 | 23.9 / 1.4 ms |
 
@@ -92,7 +92,7 @@ Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avi
 
 | Format | File Size | Bits Per Pixel (bpp) | PSNR | SSIM | vs PNG Baseline |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **✨ WPG (Our Format)** | **2,372 B** | **0.290** | **31.96 dB** | **0.9958** | **-61.9%** 🚀 |
+| **WPG (Our Format)** | **2,372 B** | **0.290** | **31.96 dB** | **0.9958** | **-61.9%** |
 | **WebP (Lossy Q80)** | 2,142 B | 0.261 | 32.05 dB | 0.9961 | -65.6% |
 | **WebP (Lossless VP8L)** | 2,150 B | 0.262 | 99.99 dB | 1.0000 | -65.4% |
 | **AVIF (Standard Q80)** | 2,817 B | 0.344 | 42.70 dB | 0.9969 | -54.7% |
@@ -101,12 +101,12 @@ Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avi
 
 ---
 
-### 🌐 Production Deployment Case Study: any2prompt.com (96/100 Mobile PageSpeed)
+### Production Deployment Case Study: any2prompt.com (96/100 Mobile PageSpeed)
 *Bitstream metrics verified in production on an active AI web application ([any2prompt.com](https://any2prompt.com)).*
 
 | Metric / Asset Group | Before (Legacy JPG/PNG) | With WPG & `<wpg-img>` | Real-World Impact |
 |---|:---:|:---:|:---:|
-| **Google PageSpeed Mobile Score** | **74 - 75** (Orange) | **96 / 100** (Emerald) 🚀 | **+21 Points jump into top 1–2% globally** |
+| **Google PageSpeed Mobile Score** | **74 - 75** (Orange) | **96 / 100** (Emerald) | **+21 Points jump into top 1–2% globally** |
 | **Hero Feature Visual** | 4.19 MB | **87.9 KB** | **-97.9%** (47.7x reduction) |
 | **Interactive Gallery Assets** | 8.69 MB (10 photos) | **993 KB** | **-88.6%** (~7.7 MB bandwidth saved) |
 | **Cumulative Layout Shift (CLS)** | 0.01 | **0.00** | **0.000 (Flawless Zero-CLS)** |
@@ -117,7 +117,7 @@ Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avi
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install wpg-img
@@ -129,7 +129,7 @@ yarn add wpg-img
 
 ---
 
-## 🚀 Quick Usage
+## Quick Usage
 
 ### 1. Plain HTML / Vanilla JS
 ```html
@@ -206,7 +206,7 @@ Optional attributes: `wasm-url`, `worker-url`, and `fallback-url` (default `/api
 
 ---
 
-## 🛠️ Programmatic Decoding API
+## Programmatic Decoding API
 
 For applications that need direct access to decoded `Blob`, `ImageBitmap`, or raw pixel buffers:
 
@@ -225,7 +225,7 @@ document.getElementById('my-img').src = imgUrl;
 
 ---
 
-## ⚡ How the Client-Side Decoder Works Under The Hood
+## How the Client-Side Decoder Works Under The Hood
 
 1. **ReadableStream.** `response.body.getReader()` accumulates chunks until 32 bytes are available, then reads the header and micro-preview across chunk boundaries.
 2. **Micro-preview.** The 16-byte block becomes a blurred SVG `<img>`. `width` and `height` set `aspect-ratio`. The display canvas stays 4×4 until the final frame, so the placeholder does not allocate a full-resolution bitmap.
@@ -238,20 +238,20 @@ document.getElementById('my-img').src = imgUrl;
 
 ---
 
-## 🔍 SEO & Core Web Vitals Superiority
+## SEO & Core Web Vitals Superiority
 
 Images account for over **60% of total web page weight** and are the #1 factor affecting mobile Google PageSpeed scores, Largest Contentful Paint (LCP), and layout shifts. `<wpg-img>` is purpose-built to deliver **100/100 Mobile Performance**.
 
-### 1. 📐 Flawless Cumulative Layout Shift (CLS: 0.000)
+### 1. Flawless Cumulative Layout Shift (CLS: 0.000)
 * **The Problem:** Modern search engines (Google Search, Discover) penalize pages when elements jump around during image asset loading.
 * **The WPG Guarantee:** Thanks to WPG's sequential binary layout, `<wpg-img>` extracts the image dimensions from the 16-byte fixed header in **< 0.05 ms**—long before full network payloads arrive. It automatically allocates the exact aspect-ratio bounding box, guaranteeing a **CLS of 0.000**.
 * **Instant Visual Engagement:** The embedded 16-byte micro-preview renders as a color-matched blurred SVG as soon as those bytes arrive.
 
-### 2. ⚡ Accelerated Largest Contentful Paint (LCP)
+### 2. Accelerated Largest Contentful Paint (LCP)
 * WPG delivers **20% to 35% smaller file sizes than AVIF** on camera photographs (via Parametric Film Grain Synthesis) and **up to 68% smaller than legacy JPEG**.
 * High-impact hero imagery loads and renders dramatically faster on 3G/4G/5G mobile connections, moving LCP into the top 10% bracket globally.
 
-### 3. 🤖 Googlebot & Search Engine Indexing
+### 3. Googlebot & Search Engine Indexing
 * Modern search crawlers (Googlebot, Bingbot) run full headless Chromium browsers that execute JavaScript and render custom Web Components.
 * `<wpg-img>` surfaces standard `alt` text to the accessibility and DOM trees, ensuring complete search engine parity and top-tier Google Image Search indexing:
   ```html
@@ -259,7 +259,7 @@ Images account for over **60% of total web page weight** and are the #1 factor a
   </wpg-img>
   ```
 
-### 4. 🌐 Universal Social Sharing & No-JS Fallback Pattern
+### 4. Universal Social Sharing & No-JS Fallback Pattern
 Non-browser unfurl bots (such as Twitter/X, WhatsApp, LinkedIn, Facebook, and Pinterest scrapers) do not execute JavaScript. WPG seamlessly accommodates these bots by pairing OpenGraph metadata with semantic `<noscript>` tags:
 
 ```html
@@ -283,7 +283,7 @@ Non-browser unfurl bots (such as Twitter/X, WhatsApp, LinkedIn, Facebook, and Pi
 
 ---
 
-## 📜 Open Source & Community Standards
+## Open Source & Community Standards
 
 WPG is open-source and royalty-free under the **MIT License**.  
 We believe open web formats should belong to the global developer community. Contributions, issues, and benchmarks are welcome!
