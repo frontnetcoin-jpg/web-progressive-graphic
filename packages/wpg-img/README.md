@@ -292,9 +292,18 @@ Non-browser unfurl bots (such as Twitter/X, WhatsApp, LinkedIn, Facebook, and Pi
 
 ---
 
+## Author & Maintainer
+
+* **Lead Architect & Creator:** **Michael Athanasiadis**
+* **Email:** [michael@inlistai.com](mailto:michael@inlistai.com)
+* **GitHub:** [@frontnetcoin-jpg](https://github.com/frontnetcoin-jpg)
+
+---
+
 ## Open Source & Community Standards
 
-WPG is open-source and royalty-free under the **MIT License**.  
+WPG is open-source and royalty-free under the **MIT License** (Copyright © 2026 Michael Athanasiadis and WPG Format Contributors).  
 We believe open web formats should belong to the global developer community. Contributions, issues, and benchmarks are welcome!
 
 **Repository:** [https://github.com/frontnetcoin-jpg/web-progressive-graphic](https://github.com/frontnetcoin-jpg/web-progressive-graphic)
+

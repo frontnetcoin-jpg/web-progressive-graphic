@@ -5,7 +5,7 @@ members = [".", "crates/wpg-wasm", "crates/wpg-thumb"]
 name = "wpg"
 version = "0.1.0"
 edition = "2024"
-authors = ["WPG Format Team"]
+authors = ["Michael Athanasiadis <michael@inlistai.com>", "WPG Format Contributors"]
 description = "Web Progressive Graphic (.wpg) - Next-Generation Image Format based on AV1 with enhanced compression"
 
 [lib]

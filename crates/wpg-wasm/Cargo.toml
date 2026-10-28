@@ -2,7 +2,7 @@
 name = "wpg-wasm"
 version = "0.1.0"
 edition = "2021"
-authors = ["WPG Format Team"]
+authors = ["Michael Athanasiadis <michael@inlistai.com>", "WPG Format Contributors"]
 description = "WebAssembly client-side decoder for WPG (.wpg) next-gen image format"
 
 [lib]

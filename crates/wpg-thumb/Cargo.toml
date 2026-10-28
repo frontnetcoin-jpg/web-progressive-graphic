@@ -2,7 +2,7 @@
 name = "wpg-thumb"
 version = "0.1.0"
 edition = "2024"
-authors = ["WPG Format Team"]
+authors = ["Michael Athanasiadis <michael@inlistai.com>", "WPG Format Contributors"]
 description = "Windows Shell Thumbnail Provider for WPG (.wpg) Next-Gen Image Format"
 
 [lib]

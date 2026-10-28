@@ -582,8 +582,11 @@ cargo run --release --bin wpg-lab -- serve --port 8080
 Open **[http://127.0.0.1:8080](http://127.0.0.1:8080)** to access:
 - **Dynamic SVG Rate-Distortion Curves:** Real-time PSNR vs. File Size (or bpp) curves comparing WPG against AVIF and WebP across all sweep points.
 - **Run Selector:** Switch between loaded JSON benchmark runs or drop new sweep results.
-- **Quality Scrubber & Podium Cards:** Compare relative compression ratios and visual fidelity metrics interactively.
+---
 
+## 15. Author, Community & License
 
-
-
+* **Lead Architect & Creator:** **Michael Athanasiadis**
+* **Email:** [michael@inlistai.com](mailto:michael@inlistai.com)
+* **GitHub Organization / Repo:** [web-progressive-graphic](https://github.com/frontnetcoin-jpg/web-progressive-graphic)
+* **License:** MIT License (Copyright © 2026 Michael Athanasiadis and WPG Format Contributors). Royalty-free, open standard.

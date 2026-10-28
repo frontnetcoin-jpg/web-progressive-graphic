@@ -489,8 +489,18 @@ cargo test --release
 
 ---
 
+## Author & Maintainer
+
+* **Lead Architect & Creator:** **Michael Athanasiadis**
+* **Email:** [michael@inlistai.com](mailto:michael@inlistai.com)
+* **GitHub:** [@frontnetcoin-jpg](https://github.com/frontnetcoin-jpg)
+* **Repository:** [web-progressive-graphic](https://github.com/frontnetcoin-jpg/web-progressive-graphic)
+
+---
+
 ## License, Disambiguation & Acknowledgments
 
-* **License:** WPG is open-source and royalty-free under the **MIT License**.
+* **License:** WPG is open-source and royalty-free under the **MIT License** (Copyright © 2026 Michael Athanasiadis and WPG Format Contributors).
 * **Disambiguation:** *Web Progressive Graphic* (`.wpg`) is an open web image standard and is completely unaffiliated with legacy 1980s WordPerfect Graphics. In modern computing, file extensions are categorized by context, MIME type (`image/wpg`), and magic byte headers (`WPG\x01`).
 * **Codecs:** Powered by world-class Rust codecs: [rav1e](https://github.com/xiph/rav1e) and [rav1d](https://github.com/videolan/rav1d).
+
