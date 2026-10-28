@@ -43,8 +43,8 @@ enum Commands {
         #[arg(short, long, default_value = "auto")]
         mode: String,
 
-        /// Chroma subsampling: 420, 422, 444
-        #[arg(long, default_value = "420")]
+        /// Chroma subsampling: auto, 420, 422, 444
+        #[arg(long, default_value = "auto")]
         subsampling: String,
 
         /// Film grain scale (0 = off, 1..255, omit for auto)
@@ -168,10 +168,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 _ => None,
             };
 
-            let sub = match subsampling.as_str() {
-                "422" => ColorSubsampling::Yuv422,
-                "444" => ColorSubsampling::Yuv444,
-                _ => ColorSubsampling::Yuv420,
+            let (sub, auto_sub) = match subsampling.to_lowercase().as_str() {
+                "422" => (ColorSubsampling::Yuv422, false),
+                "444" => (ColorSubsampling::Yuv444, false),
+                "420" => (ColorSubsampling::Yuv420, false),
+                _ => (ColorSubsampling::Yuv420, true),
             };
 
             let mut opts = EncodeOptions::default();
@@ -179,6 +180,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             opts.speed = speed;
             opts.mode = m;
             opts.subsampling = sub;
+            opts.auto_subsampling = auto_sub;
             opts.enable_preview = !no_preview;
             opts.enable_grain = grain != Some(0);
             opts.grain_scale = grain;

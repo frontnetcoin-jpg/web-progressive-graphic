@@ -156,24 +156,27 @@ fn sample_chroma_bilinear(plane: &[u8], stride: usize, uv_w: usize, uv_h: usize,
             plane[y.min(uv_h - 1) * stride + x.min(uv_w - 1)] as f32
         }
         ColorSubsampling::Yuv422 => {
-            let fx = (x as f32 + 0.5) * 0.5 - 0.5;
-            let x0 = (fx.floor() as isize).clamp(0, uv_w as isize - 1) as usize;
-            let x1 = (x0 + 1).min(uv_w - 1);
-            let wx = (fx - fx.floor()).clamp(0.0, 1.0);
-            let row = y.min(uv_h - 1) * stride;
+            let max_x = (uv_w.saturating_sub(1)) as f32;
+            let fx = ((x as f32 - 0.5) * 0.5).clamp(0.0, max_x);
+            let x0 = fx.floor() as usize;
+            let x1 = (x0 + 1).min(uv_w.saturating_sub(1));
+            let wx = fx - x0 as f32;
+            let row = y.min(uv_h.saturating_sub(1)) * stride;
             let v0 = plane[row + x0] as f32;
             let v1 = plane[row + x1] as f32;
             v0 + (v1 - v0) * wx
         }
         ColorSubsampling::Yuv420 => {
-            let fx = (x as f32 + 0.5) * 0.5 - 0.5;
-            let fy = (y as f32 + 0.5) * 0.5 - 0.5;
-            let x0 = (fx.floor() as isize).clamp(0, uv_w as isize - 1) as usize;
-            let x1 = (x0 + 1).min(uv_w - 1);
-            let y0 = (fy.floor() as isize).clamp(0, uv_h as isize - 1) as usize;
-            let y1 = (y0 + 1).min(uv_h - 1);
-            let wx = (fx - fx.floor()).clamp(0.0, 1.0);
-            let wy = (fy - fy.floor()).clamp(0.0, 1.0);
+            let max_x = (uv_w.saturating_sub(1)) as f32;
+            let max_y = (uv_h.saturating_sub(1)) as f32;
+            let fx = ((x as f32 - 0.5) * 0.5).clamp(0.0, max_x);
+            let fy = ((y as f32 - 0.5) * 0.5).clamp(0.0, max_y);
+            let x0 = fx.floor() as usize;
+            let x1 = (x0 + 1).min(uv_w.saturating_sub(1));
+            let y0 = fy.floor() as usize;
+            let y1 = (y0 + 1).min(uv_h.saturating_sub(1));
+            let wx = fx - x0 as f32;
+            let wy = fy - y0 as f32;
 
             let p00 = plane[y0 * stride + x0] as f32;
             let p10 = plane[y0 * stride + x1] as f32;
