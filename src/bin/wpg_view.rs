@@ -1,14 +1,22 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 #![allow(non_snake_case, dead_code)]
 
-use std::env;
-use std::ffi::OsStr;
-use std::fs;
-use std::os::windows::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
-use std::ptr::{null, null_mut};
-use std::time::Instant;
-use wpg::{WpgDecoder, WpgHeader};
+#[cfg(not(windows))]
+fn main() {
+    eprintln!("wpg-view is a native Windows Win32 GDI desktop viewer.");
+    std::process::exit(1);
+}
+
+#[cfg(windows)]
+mod win_app {
+    use std::env;
+    use std::ffi::OsStr;
+    use std::fs;
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::{Path, PathBuf};
+    use std::ptr::{null, null_mut};
+    use std::time::Instant;
+    use wpg::{WpgDecoder, WpgHeader};
 
 // Win32 Types and Constants
 type HWND = *mut std::ffi::c_void;
@@ -748,7 +756,7 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
     }
 }
 
-fn main() {
+pub fn run() {
     let args: Vec<String> = env::args().collect();
     let initial_file = args.get(1).map(PathBuf::from);
 
@@ -825,3 +833,11 @@ fn main() {
         }
     }
 }
+}
+
+#[cfg(windows)]
+fn main() {
+    win_app::run();
+}
+
+
