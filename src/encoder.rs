@@ -16,6 +16,7 @@ pub struct EncodeOptions {
     pub speed: u8,                     // 1..10 (default 6)
     pub mode: Option<WpgMode>,         // None = Auto
     pub subsampling: ColorSubsampling, // Default Yuv420 for lossy, Rgb for lossless
+    pub auto_subsampling: bool,        // Default true: intelligently selects 4:4:4 for high quality/alpha
     pub enable_preview: bool,          // Default true (16-byte micro preview)
     pub enable_grain: bool,            // Default true (film grain synthesis)
     pub grain_scale: Option<u8>,       // None = Auto-detect, Some(0..255)
@@ -30,6 +31,7 @@ impl Default for EncodeOptions {
             speed: 6,
             mode: None,
             subsampling: ColorSubsampling::Yuv420,
+            auto_subsampling: true,
             enable_preview: true,
             enable_grain: true,
             grain_scale: None,
@@ -74,11 +76,23 @@ impl WpgEncoder {
             }
         };
 
+        // Auto-detect optimal chroma subsampling:
+        // For images with alpha (vector/UI icons) or high quality (>= 80), 4:4:4 eliminates chroma bleeding.
+        let effective_subsampling = if options.auto_subsampling {
+            if has_alpha || options.quality >= 80 {
+                ColorSubsampling::Yuv444
+            } else {
+                options.subsampling
+            }
+        } else {
+            options.subsampling
+        };
+
         let mut header = WpgHeader::new(
             width,
             height,
             selected_mode,
-            options.subsampling,
+            effective_subsampling,
             options.quality,
         );
 
@@ -100,7 +114,13 @@ impl WpgEncoder {
         if selected_mode == WpgMode::Av1Enhanced && options.enable_grain {
             grain_params = match options.grain_scale {
                 Some(scale) => FilmGrainParams::new(scale, 1337),
-                None => FilmGrainParams::estimate_grain(rgba, width, height),
+                None => {
+                    if has_alpha {
+                        FilmGrainParams::default()
+                    } else {
+                        FilmGrainParams::estimate_grain(rgba, width, height)
+                    }
+                }
             };
             if grain_params.grain_scale > 0 {
                 header.flags |= FLAG_FILM_GRAIN;
@@ -150,7 +170,7 @@ impl WpgEncoder {
                     &processed_rgba,
                     width as usize,
                     height as usize,
-                    options.subsampling,
+                    effective_subsampling,
                 );
 
                 let raw_obu = Av1Codec::encode_intra(

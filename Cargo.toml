@@ -28,6 +28,10 @@ path = "src/bin/wpg_dec.rs"
 name = "wpg-view"
 path = "src/bin/wpg_view.rs"
 
+[[bin]]
+name = "wpg-lab"
+path = "src/bin/wpg_lab.rs"
+
 [dependencies]
 rav1e = { version = "0.8", default-features = false, features = ["threading"] }
 rav1d = { version = "1.1", default-features = false, features = ["bitdepth_8"] }

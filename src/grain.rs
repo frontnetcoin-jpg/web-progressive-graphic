@@ -66,7 +66,7 @@ impl FilmGrainParams {
     /// Uses a 2D sign-reversal (local extremum) detector restricted to flat patches
     /// so smooth gradients and anti-aliased edges are never misclassified as camera noise.
     pub fn estimate_grain(rgba: &[u8], width: u32, height: u32) -> Self {
-        if width < 8 || height < 8 || rgba.is_empty() {
+        if width < 8 || height < 8 || rgba.is_empty() || rgba.chunks_exact(4).any(|px| px[3] < 255) {
             return Self::default();
         }
 

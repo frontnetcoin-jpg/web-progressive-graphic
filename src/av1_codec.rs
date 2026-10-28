@@ -3,18 +3,20 @@ use crate::header::ColorSubsampling;
 use std::io;
 use std::ptr::NonNull;
 
-/// Map perceptual quality 1..100 to AV1 quantizer 0..255 using the calibrated AVIF curve
+/// Map perceptual quality 1..100 to AV1 quantizer 0..255 using calibrated smooth rate-distortion curve
 pub fn quality_to_quantizer(quality: u8) -> usize {
     if quality >= 100 {
         return 1;
     }
     let q = (quality as f32 / 100.0).clamp(0.01, 0.999);
-    let x = if q >= 0.82 {
-        (1.0 - q) * 2.6
+    // Smooth calibrated perceptual curve with optimal rate-distortion trade-off:
+    // C0-continuous at boundary q = 0.75 (0.480) and q = 0.25 (0.720)
+    let x = if q >= 0.75 {
+        (1.0 - q) * 1.92
     } else if q > 0.25 {
-        (1.0 - 0.125) - 0.5 * q
+        0.84 - 0.48 * q
     } else {
-        1.0 - q
+        0.98 - 1.04 * q
     };
     (x * 255.0).round().clamp(1.0, 255.0) as usize
 }
@@ -40,8 +42,9 @@ impl Av1Codec {
 
         let clamped_speed = speed.clamp(1, 10);
         let q = quality_to_quantizer(quality);
-        let low_quality = q < quality_to_quantizer(55);
-        let high_quality = q > quality_to_quantizer(80);
+        // In AV1 rav1e, lower quantizer integer represents higher fidelity/quality.
+        let low_quality = q > quality_to_quantizer(55);
+        let high_quality = q < quality_to_quantizer(80);
 
         // Configure SpeedSettings specifically for single-frame still images (disables video lookahead & motion search overhead)
         let mut speed_settings = SpeedSettings::from_preset(clamped_speed);
@@ -56,9 +59,9 @@ impl Av1Codec {
         } else {
             SGRComplexityLevel::Reduced
         };
-        speed_settings.transform.rdo_tx_decision = clamped_speed <= 4 && !high_quality;
+        speed_settings.transform.rdo_tx_decision = clamped_speed <= 6 || high_quality;
         speed_settings.transform.reduced_tx_set = clamped_speed == 4 || clamped_speed >= 9;
-        speed_settings.prediction.fine_directional_intra = clamped_speed <= 6;
+        speed_settings.prediction.fine_directional_intra = clamped_speed <= 7;
         speed_settings.fast_deblock = clamped_speed >= 7 && !high_quality;
         speed_settings.lrf = low_quality && clamped_speed <= 8;
         speed_settings.cdef = low_quality && clamped_speed <= 9;
@@ -70,8 +73,9 @@ impl Av1Codec {
 
         let (min_b, max_b) = match clamped_speed {
             1..=4 => (BlockSize::BLOCK_4X4, BlockSize::BLOCK_16X16),
-            5..=8 => (BlockSize::BLOCK_8X8, BlockSize::BLOCK_16X16),
-            _ => (BlockSize::BLOCK_16X16, BlockSize::BLOCK_16X16),
+            5..=6 => (BlockSize::BLOCK_4X4, BlockSize::BLOCK_32X32),
+            7..=8 => (BlockSize::BLOCK_8X8, BlockSize::BLOCK_32X32),
+            _ => (BlockSize::BLOCK_16X16, BlockSize::BLOCK_32X32),
         };
         speed_settings.partition.partition_range = PartitionRange::new(min_b, max_b);
 
