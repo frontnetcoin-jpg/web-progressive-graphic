@@ -22,7 +22,7 @@ In the evolutionary history of the World Wide Web, three-letter acronyms define 
 
 ### 1.3 Official Ecosystem Links
 * **GitHub Repository:** [https://github.com/frontnetcoin-jpg/web-progressive-graphic](https://github.com/frontnetcoin-jpg/web-progressive-graphic) (Public, Branch `main`)
-* **NPM Registry Package:** [https://www.npmjs.com/package/wpg-img](https://www.npmjs.com/package/wpg-img) (`wpg-img@1.0.0`)
+* **NPM Registry Package:** [https://www.npmjs.com/package/wpg-img](https://www.npmjs.com/package/wpg-img) (`wpg-img@1.0.3`)
 * **License:** MIT License (100% royalty-free open standard)
 
 ### 1.4 Historical Disambiguation & Industry Precedent

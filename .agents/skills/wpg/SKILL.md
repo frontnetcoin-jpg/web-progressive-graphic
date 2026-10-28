@@ -183,7 +183,7 @@ A Mode 0 payload with `FLAG_SECONDARY_ENTROPY` is Zstd-inflated inside `wpg_wrap
 ## 4. Public Distribution (npm and GitHub)
 
 * **GitHub repository:** [https://github.com/frontnetcoin-jpg/web-progressive-graphic](https://github.com/frontnetcoin-jpg/web-progressive-graphic) (public, branch `main`)
-* **npm package:** [https://www.npmjs.com/package/wpg-img](https://www.npmjs.com/package/wpg-img) (`wpg-img@1.0.1`)
+* **npm package:** [https://www.npmjs.com/package/wpg-img](https://www.npmjs.com/package/wpg-img) (`wpg-img@1.0.3`)
   - Install: `npm install wpg-img`
   - Contents: TypeScript types (`dist/index.d.ts`), ESM client (`dist/index.js`), worker (`dist/wpg-worker.js`), and the on-demand Wasm decoder (`wpg-decoder.wasm`, ~130 KB with LTO). Exports: `<wpg-img>`, `renderWpgImg`, `decodeWpg`, `getWpgWasm`, `getWpgWorkerPool`.
 
