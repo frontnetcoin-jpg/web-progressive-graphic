@@ -163,11 +163,20 @@ These figures are the same measurements published in `README.md`. Bits per pixel
 | **PNG (Baseline)** | 6,222 B | 0.760 | 99.99 dB | 1.0000 | Baseline |
 | **JPEG (Q80)** | 8,262 B | 1.009 | 38.85 dB | 0.9966 | +32.8% |
 
+### 4.5 Laboratory Head-to-Head Multi-Point Sweeps (Quality 80, Speed 6)
+
+| Benchmark Asset | Dimensions | Standard AVIF | WPG Format | File Size Δ | PSNR Δ |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `camera_photo.jpg` | 320×240 | 2,626 B (40.33 dB) | **1,768 B (40.59 dB)** | **-32.7%** | **+0.26 dB** |
+| `sample.png` | 256×256 | 2,817 B (42.70 dB) | **2,492 B (47.66 dB)** | **-11.5%** | **+4.96 dB** |
+| `highres_photo.jpg` | 800×600 | 14,814 B (40.28 dB) | **13,845 B (40.84 dB)** | **-6.5%** | **+0.56 dB** |
+| `graphic_art.png` | 512×512 | 17,678 B (39.54 dB) | **17,215 B (40.16 dB)** | **-2.6%** | **+0.62 dB** |
+
 ---
 
 ## 5. Tooling & CLI Reference
 
-The workspace includes three native release binaries:
+The workspace includes four native release binaries:
 
 ### Unified CLI (`wpg`)
 ```bash
@@ -190,9 +199,21 @@ wpg bench input.jpg --quality 80 --speed 6 --output-dir ./bench_out
 wpg serve --port 3000
 ```
 
+### Dedicated Laboratory Suite (`wpg-lab`)
+```bash
+# Run multi-point rate-distortion sweeps on all benchmark datasets:
+cargo run --release --bin wpg-lab -- all
+
+# Run sweep on a single image:
+cargo run --release --bin wpg-lab -- run datasets/camera_photo.jpg
+
+# Launch the interactive Rate-Distortion SVG Playground on http://127.0.0.1:8080:
+cargo run --release --bin wpg-lab -- serve --port 8080
+```
+
 ### Dedicated Encoder (`wpg-enc`)
 ```bash
-wpg-enc input.jpg output.wpg -q 85 -s 6 --mode auto --subsampling 420
+wpg-enc input.jpg output.wpg -q 85 -s 6 --mode auto --subsampling auto
 ```
 
 ### Dedicated Decoder (`wpg-dec`)

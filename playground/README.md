@@ -67,3 +67,17 @@ Open `index.html` in either of these ways:
 # 5. Full 3-Format Head-to-Head Benchmark (.wpg vs .webp vs .avif) and export converted files:
 ..\target\release\wpg.exe bench input\photo.jpg --quality 80 --speed 6 --output-dir output
 ```
+
+---
+
+## Advanced Rate-Distortion Laboratory (`laboratory/`)
+
+For multi-point rate-distortion curves (Q40..Q90 sweeps), Pareto frontier comparisons against AVIF and WebP, and the interactive SVG Playground dashboard, see the **[WPG Compression Laboratory](../laboratory/README.md)**:
+
+```powershell
+# Run automated multi-point rate-distortion sweeps:
+cargo run --release --bin wpg-lab -- all
+
+# Launch the interactive Laboratory Playground web dashboard on http://127.0.0.1:8080:
+cargo run --release --bin wpg-lab -- serve --port 8080
+```

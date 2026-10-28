@@ -99,6 +99,15 @@ Tested in the 3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avi
 | **PNG (Baseline)** | 6,222 B | 0.760 | 99.99 dB | 1.0000 | Baseline |
 | **JPEG (Q80)** | 8,262 B | 1.009 | 38.85 dB | 0.9966 | +32.8% |
 
+### 4. Laboratory Head-to-Head Multi-Point Sweeps (Quality 80, Speed 6)
+
+| Dataset | Dimensions | AVIF File Size | AVIF PSNR | WPG File Size | WPG PSNR | Size Reduction | PSNR Advantage |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `camera_photo.jpg` | 320×240 | 2,626 B | 40.33 dB | **1,768 B** | **40.59 dB** | **-32.7% (-858 B)** | **+0.26 dB** |
+| `sample.png` | 256×256 | 2,817 B | 42.70 dB | **2,492 B** | **47.66 dB** | **-11.5% (-325 B)** | **+4.96 dB** |
+| `highres_photo.jpg` | 800×600 | 14,814 B | 40.28 dB | **13,845 B** | **40.84 dB** | **-6.5% (-969 B)** | **+0.56 dB** |
+| `graphic_art.png` | 512×512 | 17,678 B | 39.54 dB | **17,215 B** | **40.16 dB** | **-2.6% (-463 B)** | **+0.62 dB** |
+
 ---
 
 ### Production Deployment Case Study: any2prompt.com (96/100 Mobile PageSpeed)

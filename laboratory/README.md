@@ -1,6 +1,6 @@
 # WPG Experimental Laboratory & Playground
 
-> **Branch:** `main-experiment`  
+> **Branch:** `main` (Merged from `main-experiment`)  
 > **Status:** **ACHIEVED** — WPG establishes strict Pareto dominance over AVIF across multiple image domains.
 
 ---

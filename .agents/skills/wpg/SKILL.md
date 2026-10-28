@@ -65,6 +65,8 @@ WPG is a **pure Rust** image format based on **AV1 Intra**. It drops the ISOBMFF
 * [`src/metrics.rs`](file:///c:/Users/user/Desktop/wpg/src/metrics.rs): Pixel-accurate PSNR, SSIM, bits per pixel, and savings.
 * [`src/server.rs`](file:///c:/Users/user/Desktop/wpg/src/server.rs): Embedded HTTP server with the **3-Format Head-to-Head Benchmark Studio (`.wpg` vs `.webp` vs `.avif`)**, drag-and-drop `.jpg` dropzone, split view, zoom lens, REST API, and the web component assets.
 * [`src/bin/wpg.rs`](file:///c:/Users/user/Desktop/wpg/src/bin/wpg.rs): Unified CLI (`encode`, `decode`, `batch`, `bench`, `info`, `serve`, `view`, `register`).
+* [`src/bin/wpg_lab.rs`](file:///c:/Users/user/Desktop/wpg/src/bin/wpg_lab.rs): Automated laboratory rate-distortion sweep engine (`wpg-lab all / run`) and playground server (`wpg-lab serve`).
+* [`laboratory/`](file:///c:/Users/user/Desktop/wpg/laboratory/): Curated datasets (`datasets/`), structured JSON sweep runs (`runs/`), and interactive SVG Rate-Distortion playground dashboard (`playground/index.html`).
 * [`wpg-element.js`](file:///c:/Users/user/Desktop/wpg/wpg-element.js): ESM `<wpg-img>` client. ReadableStream micro-preview, worker pool, 0-KB Wasm pure-JS Mode 0 fast path, Declarative Shadow DOM / `renderWpgImg()`, and fallbacks.
 * [`wpg-worker.js`](file:///c:/Users/user/Desktop/wpg/wpg-worker.js): Off-thread 0-KB Wasm pure-JS ISOBMFF wrapper (`wrapWpgMode0ToAvifJs`) and `applyFilmGrainJs` for Mode 0, plus lazy on-demand Wasm loading for palette/modular RGBA decode and alpha merge, returning a transferable `ImageBitmap`.
 * [`crates/wpg-wasm`](file:///c:/Users/user/Desktop/wpg/crates/wpg-wasm/src/lib.rs): On-demand client decoder. `wpg_alloc` / `wpg_free` use one exact allocation size. `wpg_wrap_to_avif` returns `-5` for Mode 1 and Mode 2. `wpg_decode_rgba` decodes those modes. `wpg_apply_alpha` merges the Zstd alpha plane.
@@ -118,6 +120,11 @@ WPG is a **pure Rust** image format based on **AV1 Intra**. It drops the ISOBMFF
 
 # Remove the Explorer registration:
 .\target\release\wpg.exe unregister
+
+# Laboratory rate-distortion sweeps & interactive playground
+cargo run --release --bin wpg-lab -- all
+cargo run --release --bin wpg-lab -- run laboratory\datasets\camera_photo.jpg
+cargo run --release --bin wpg-lab -- serve --port 8080
 ```
 
 ### Windows shell integration (`wpg_thumb.dll`)
@@ -242,3 +249,8 @@ A Mode 0 payload with `FLAG_SECONDARY_ENTROPY` is Zstd-inflated inside `wpg_wrap
    - **SystemFileAssociations override:** On Windows 10/11, `PerceivedType = image` makes Explorer fall through to `PhotoMetadataHandler.dll`. Register an explicit override at `HKCU:\Software\Classes\SystemFileAssociations\.wpg\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}`.
    - **Photo frame and icon:** Set `Treatment = 2` for the drop-shadow photo border and `DefaultIcon = %SystemRoot%\System32\imageres.dll,-70`.
    - **Cache flush:** After rebuilding `wpg_thumb.dll`, restart Explorer (`Stop-Process -Name explorer -Force; Start-Process explorer.exe`) so the in-memory thumbnail cache is cleared.
+8. **Compression Engine & RDO Calibration:**
+   - **Chroma phase alignment:** `sample_chroma_bilinear` in `src/color.rs` must use half-pixel centering with clamping (`((x + 0.5) * 0.5 - 0.5).clamp(0.0, max)`). Any offset causes phase inversion at image borders, degrading chroma PSNR by 1–3 dB.
+   - **AV1 Quantizer scale:** In AV1 / `rav1e`, lower quantizer means higher quality. Never invert comparison conditions (`low_quality = q > quality_to_quantizer(55)`). RDO transform decisions and $4 \times 4$ blocks must stay active for high quality.
+   - **Film grain on alpha / graphics:** `estimate_grain` in `src/grain.rs` must be skipped if the image has transparent pixels or flat computer graphics (`px[3] < 255`), avoiding synthesized noise over sharp vector edges.
+   - **Auto-subsampling:** Defaults to 4:4:4 for $Q \ge 80$ or alpha imagery; 4:2:0 for $Q < 80$. Because WPG's 16B header eliminates container bloat, 4:4:4 WPG images remain smaller than 4:2:0 AVIF while beating it in PSNR.
