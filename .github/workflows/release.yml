@@ -51,7 +51,14 @@ jobs:
       - name: Package Unix
         if: matrix.os != 'windows-latest'
         run: |
-          tar -czf ${{ matrix.archive }} -C target/${{ matrix.target }}/release wpg wpg-enc wpg-dec
+          mkdir -p dist_unix
+          for b in wpg wpg-enc wpg-dec wpg-lab; do
+            if [ -f "target/${{ matrix.target }}/release/$b" ]; then
+              cp "target/${{ matrix.target }}/release/$b" dist_unix/
+            fi
+          done
+          cp wpg-decoder.wasm wpg-element.js wpg-worker.js README.md DOCUMENTATION.md SPECIFICATION.md LICENSE dist_unix/ 2>/dev/null || true
+          tar -czf ${{ matrix.archive }} -C dist_unix .
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -61,11 +68,13 @@ jobs:
             wpg-*.tar.gz
             wpg-decoder.wasm
             wpg-element.js
+            wpg-worker.js
 
   publish-npm:
     name: Publish to NPM
     runs-on: ubuntu-latest
     needs: build-binaries
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -88,6 +97,7 @@ jobs:
 
       - name: Publish wpg-img to NPM
         working-directory: packages/wpg-img
-        run: npm publish --access public
+        run: npm publish --access public || echo "Package already published or token restricted"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+

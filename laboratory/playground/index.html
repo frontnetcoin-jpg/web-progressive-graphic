@@ -569,13 +569,28 @@
             const targetBtn = Array.from(document.querySelectorAll('.run-btn')).find(b => b.textContent.includes(runName));
             if (targetBtn) targetBtn.classList.add('active');
 
-            try {
-                const res = await fetch(`/api/runs/${runName}.json`);
-                if (!res.ok) throw new Error('Run not found');
-                currentRunData = await res.json();
+            const candidatePaths = [
+                `/api/runs/${runName}.json`,
+                `./runs/${runName}.json`,
+                `../runs/${runName}.json`
+            ];
+
+            let loaded = false;
+            for (const p of candidatePaths) {
+                try {
+                    const res = await fetch(p);
+                    if (res.ok) {
+                        currentRunData = await res.json();
+                        renderRunData(currentRunData);
+                        loaded = true;
+                        break;
+                    }
+                } catch (e) {}
+            }
+
+            if (!loaded && window.EMBEDDED_RUNS && window.EMBEDDED_RUNS[runName]) {
+                currentRunData = window.EMBEDDED_RUNS[runName];
                 renderRunData(currentRunData);
-            } catch (err) {
-                console.error("Failed to load run:", err);
             }
         }
 

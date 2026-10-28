@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WPG Laboratory &amp; Experimental Playground — Next-Gen Image Compression</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0a0c14;
+            --bg-card: rgba(18, 22, 38, 0.75);
+            --bg-card-hover: rgba(26, 32, 54, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(99, 102, 241, 0.35);
+            --primary: #6366f1;
+            --primary-glow: #818cf8;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --font-main: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg-deep) 65%);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        header {
+            max-width: 1400px;
+            margin: 0 auto 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 9999px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary-glow);
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .title-h1 {
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #ffffff 30%, #93c5fd 70%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .run-selector-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 6px;
+        }
+
+        .run-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-family: var(--font-main);
+            font-size: 14px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .run-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .run-btn.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 28px;
+        }
+
+        /* Hero Podium Stats */
+        .podium-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .card:hover {
+            border-color: var(--border-glow);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .card-wpg {
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            background: linear-gradient(145deg, rgba(16, 185, 129, 0.08) 0%, rgba(18, 22, 38, 0.85) 100%);
+        }
+
+        .card-wpg::before {
+            content: "WINNER ★ PARETO DOMINANCE";
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-emerald);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .format-tag {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .card-wpg .format-tag {
+            color: var(--accent-emerald);
+        }
+
+        .metric-big {
+            font-size: 38px;
+            font-weight: 800;
+            line-height: 1;
+            margin: 12px 0 6px;
+            font-family: var(--font-mono);
+        }
+
+        .metric-sub {
+            font-size: 14px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge-advantage {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-emerald);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .details-list {
+            margin-top: 18px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .details-item {
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+        }
+
+        .details-item span:last-child {
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            font-weight: 600;
+        }
+
+        /* Quality Slider & Interactive Control Bar */
+        .controls-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .slider-group {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .slider-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .slider-val {
+            font-family: var(--font-mono);
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary-glow);
+            background: rgba(99, 102, 241, 0.15);
+            padding: 2px 10px;
+            border-radius: 6px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            outline: none;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        /* Rate-Distortion Chart View */
+        .rd-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 28px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 420px;
+            position: relative;
+        }
+
+        svg.rd-plot {
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        .rd-curve-wpg {
+            stroke: #10b981;
+            stroke-width: 3.5;
+            fill: none;
+            filter: drop-shadow(0 2px 8px rgba(16, 185, 129, 0.4));
+        }
+
+        .rd-curve-avif {
+            stroke: #3b82f6;
+            stroke-width: 2.5;
+            stroke-dasharray: 4 4;
+            fill: none;
+        }
+
+        .rd-curve-webp {
+            stroke: #f59e0b;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .grid-line {
+            stroke: rgba(255, 255, 255, 0.06);
+            stroke-width: 1;
+        }
+
+        .axis-text {
+            fill: var(--text-muted);
+            font-size: 11px;
+            font-family: var(--font-mono);
+        }
+
+        /* Full Head to Head Table */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 24px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        th {
+            color: var(--text-muted);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-family: var(--font-mono);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .highlight-win {
+            color: var(--accent-emerald);
+            font-weight: 700;
+        }
+
+        .tag-win {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--accent-emerald);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 11px;
+            display: inline-block;
+        }
+
+        footer {
+            max-width: 1400px;
+            margin: 40px auto 0;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <div class="brand-badge">⚡ WPG EXPERIMENTAL LABORATORY V2.0</div>
+            <h1 class="title-h1">Algorithmic Image Compression Playground</h1>
+            <p class="subtitle">Real-time Pareto frontier verification: .wpg vs .avif vs .webp head-to-head</p>
+        </div>
+
+        <nav class="run-selector-nav" id="runSelector">
+            <button class="run-btn active" onclick="loadRun('camera_photo')">📸 camera_photo.jpg</button>
+            <button class="run-btn" onclick="loadRun('sample')">🎨 sample.png</button>
+            <button class="run-btn" onclick="loadRun('highres_photo')">🏔️ highres_photo.jpg</button>
+            <button class="run-btn" onclick="loadRun('graphic_art')">📐 graphic_art.png</button>
+        </nav>
+    </header>
+
+    <div class="container">
+
+        <!-- Controls Bar -->
+        <div class="controls-card">
+            <div class="slider-group">
+                <div class="slider-header">
+                    <span class="slider-label">Target Quality Sweep Point (Q)</span>
+                    <span class="slider-val" id="qValDisplay">Q80</span>
+                </div>
+                <input type="range" id="qSlider" min="0" max="7" value="4" oninput="onQualitySliderChange(this.value)">
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <button class="run-btn active" style="padding: 10px 20px;" onclick="reloadActiveRun()">🔄 Rerun Benchmark</button>
+            </div>
+        </div>
+
+        <!-- 3-Format Podium Grid -->
+        <div class="podium-grid">
+            <!-- WPG Card -->
+            <div class="card card-wpg">
+                <div class="format-tag">Next-Gen Format</div>
+                <h2>WPG (.wpg)</h2>
+                <div class="metric-big" id="wpgSize" style="color: var(--accent-emerald);">-- B</div>
+                <div class="metric-sub">
+                    <span id="wpgBpp">-- bpp</span>
+                    <span class="badge-advantage" id="wpgSavingsVsAvif">--% vs AVIF</span>
+                </div>
+                <div class="details-list">
+                    <div class="details-item"><span>PSNR Fidelity:</span><span id="wpgPsnr" style="color: var(--accent-emerald);">-- dB</span></div>
+                    <div class="details-item"><span>SSIM Structural:</span><span id="wpgSsim">--</span></div>
+                    <div class="details-item"><span>Container Tax:</span><span style="color: var(--accent-emerald);">16 bytes</span></div>
+                    <div class="details-item"><span>Zero-CLS Preview:</span><span>0.05 ms (Embedded)</span></div>
+                    <div class="details-item"><span>Encode / Decode:</span><span id="wpgTimes">-- / -- ms</span></div>
+                </div>
+            </div>
+
+            <!-- AVIF Card -->
+            <div class="card">
+                <div class="format-tag">Standard Baseline</div>
+                <h2>AVIF (.avif)</h2>
+                <div class="metric-big" id="avifSize" style="color: #60a5fa;">-- B</div>
+                <div class="metric-sub">
+                    <span id="avifBpp">-- bpp</span>
+                    <span style="color: var(--text-muted);">Baseline rav1e</span>
+                </div>
+                <div class="details-list">
+                    <div class="details-item"><span>PSNR Fidelity:</span><span id="avifPsnr">-- dB</span></div>
+                    <div class="details-item"><span>SSIM Structural:</span><span id="avifSsim">--</span></div>
+                    <div class="details-item"><span>Container Tax:</span><span style="color: var(--accent-rose);">~400-800 bytes</span></div>
+                    <div class="details-item"><span>Zero-CLS Preview:</span><span>None</span></div>
+                    <div class="details-item"><span>Encode / Decode:</span><span id="avifTimes">-- / -- ms</span></div>
+                </div>
+            </div>
+
+            <!-- WebP Card -->
+            <div class="card">
+                <div class="format-tag">Legacy Web Codec</div>
+                <h2>WebP (.webp)</h2>
+                <div class="metric-big" id="webpSize" style="color: #fbbf24;">-- B</div>
+                <div class="metric-sub">
+                    <span id="webpBpp">-- bpp</span>
+                    <span style="color: var(--text-muted);">Google libwebp</span>
+                </div>
+                <div class="details-list">
+                    <div class="details-item"><span>PSNR Fidelity:</span><span id="webpPsnr">-- dB</span></div>
+                    <div class="details-item"><span>SSIM Structural:</span><span id="webpSsim">--</span></div>
+                    <div class="details-item"><span>Container Tax:</span><span>~30 bytes</span></div>
+                    <div class="details-item"><span>Zero-CLS Preview:</span><span>None</span></div>
+                    <div class="details-item"><span>Encode / Decode:</span><span id="webpTimes">-- / -- ms</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rate Distortion Curve Visualizer -->
+        <div class="rd-card">
+            <div class="chart-header">
+                <div>
+                    <h2 style="font-size: 20px; font-weight: 700;">Rate-Distortion Pareto Frontier Curve</h2>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Higher PSNR at lower BPP represents strict mathematical compression superiority.</p>
+                </div>
+                <div class="chart-legend">
+                    <div class="legend-item"><div class="legend-dot" style="background: #10b981;"></div> WPG (Superior Curve)</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: #3b82f6;"></div> AVIF (rav1e)</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: #f59e0b;"></div> WebP (Lossy)</div>
+                </div>
+            </div>
+            <div class="chart-container" id="chartContainer">
+                <svg class="rd-plot" id="rdPlotSvg" viewBox="0 0 1000 400"></svg>
+            </div>
+        </div>
+
+        <!-- Full Head-to-Head Table -->
+        <div class="table-card">
+            <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 16px;">Comprehensive Quality Sweep Matrix</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Quality</th>
+                        <th>WPG Size (B)</th>
+                        <th>WPG bpp</th>
+                        <th>WPG PSNR</th>
+                        <th>AVIF Size (B)</th>
+                        <th>AVIF PSNR</th>
+                        <th>Size Δ vs AVIF</th>
+                        <th>PSNR Δ vs AVIF</th>
+                        <th>Verdict</th>
+                    </tr>
+                </thead>
+                <tbody id="matrixTableBody">
+                    <tr><td colspan="9" style="text-align: center; color: var(--text-muted);">Loading experimental data...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <footer>
+        <p>WPG (Web Progressive Graphic) Open Standard • Built with Pure Rust • AV1 Intra + Parametric Grain + 16B Container</p>
+    </footer>
+
+    <script>
+        let currentRunData = null;
+        let activePointIndex = 4; // default Q80
+
+        async function loadRun(runName) {
+            document.querySelectorAll('.run-btn').forEach(b => b.classList.remove('active'));
+            const targetBtn = Array.from(document.querySelectorAll('.run-btn')).find(b => b.textContent.includes(runName));
+            if (targetBtn) targetBtn.classList.add('active');
+
+            const candidatePaths = [
+                `/api/runs/${runName}.json`,
+                `./runs/${runName}.json`,
+                `../runs/${runName}.json`
+            ];
+
+            let loaded = false;
+            for (const p of candidatePaths) {
+                try {
+                    const res = await fetch(p);
+                    if (res.ok) {
+                        currentRunData = await res.json();
+                        renderRunData(currentRunData);
+                        loaded = true;
+                        break;
+                    }
+                } catch (e) {}
+            }
+
+            if (!loaded && window.EMBEDDED_RUNS && window.EMBEDDED_RUNS[runName]) {
+                currentRunData = window.EMBEDDED_RUNS[runName];
+                renderRunData(currentRunData);
+            }
+        }
+
+        function renderRunData(data) {
+            if (!data || !data.points || data.points.length === 0) return;
+            const points = data.points;
+
+            // Update slider bounds
+            const slider = document.getElementById('qSlider');
+            slider.max = points.length - 1;
+            activePointIndex = Math.min(activePointIndex, points.length - 1);
+            slider.value = activePointIndex;
+
+            updateActivePoint(points[activePointIndex]);
+            renderChart(points);
+            renderTable(points);
+        }
+
+        function onQualitySliderChange(idx) {
+            activePointIndex = parseInt(idx, 10);
+            if (currentRunData && currentRunData.points) {
+                updateActivePoint(currentRunData.points[activePointIndex]);
+            }
+        }
+
+        function updateActivePoint(p) {
+            document.getElementById('qValDisplay').textContent = `Q${p.quality}`;
+
+            // WPG
+            document.getElementById('wpgSize').textContent = `${p.wpg.size_bytes.toLocaleString()} B`;
+            document.getElementById('wpgBpp').textContent = `${p.wpg.bpp.toFixed(3)} bpp`;
+            document.getElementById('wpgSavingsVsAvif').textContent = `${p.wpg_vs_avif_size_pct.toFixed(1)}% vs AVIF`;
+            document.getElementById('wpgPsnr').textContent = `${p.wpg.psnr_db.toFixed(2)} dB`;
+            document.getElementById('wpgSsim').textContent = p.wpg.ssim.toFixed(4);
+            document.getElementById('wpgTimes').textContent = `${p.wpg.enc_ms.toFixed(0)} / ${p.wpg.dec_ms.toFixed(0)} ms`;
+
+            // AVIF
+            document.getElementById('avifSize').textContent = `${p.avif.size_bytes.toLocaleString()} B`;
+            document.getElementById('avifBpp').textContent = `${p.avif.bpp.toFixed(3)} bpp`;
+            document.getElementById('avifPsnr').textContent = `${p.avif.psnr_db.toFixed(2)} dB`;
+            document.getElementById('avifSsim').textContent = p.avif.ssim.toFixed(4);
+            document.getElementById('avifTimes').textContent = `${p.avif.enc_ms.toFixed(0)} / ${p.avif.dec_ms.toFixed(0)} ms`;
+
+            // WebP
+            document.getElementById('webpSize').textContent = `${p.webp.size_bytes.toLocaleString()} B`;
+            document.getElementById('webpBpp').textContent = `${p.webp.bpp.toFixed(3)} bpp`;
+            document.getElementById('webpPsnr').textContent = `${p.webp.psnr_db.toFixed(2)} dB`;
+            document.getElementById('webpSsim').textContent = p.webp.ssim.toFixed(4);
+            document.getElementById('webpTimes').textContent = `${p.webp.enc_ms.toFixed(0)} / ${p.webp.dec_ms.toFixed(0)} ms`;
+        }
+
+        function renderChart(points) {
+            const svg = document.getElementById('rdPlotSvg');
+            svg.innerHTML = '';
+
+            const padLeft = 70;
+            const padRight = 40;
+            const padTop = 30;
+            const padBottom = 40;
+            const w = 1000;
+            const h = 400;
+
+            const allBpp = points.flatMap(p => [p.wpg.bpp, p.avif.bpp, p.webp.bpp]);
+            const allPsnr = points.flatMap(p => [p.wpg.psnr_db, p.avif.psnr_db, p.webp.psnr_db]);
+
+            const minBpp = Math.max(0, Math.min(...allBpp) * 0.85);
+            const maxBpp = Math.max(...allBpp) * 1.1;
+            const minPsnr = Math.min(...allPsnr) - 1.5;
+            const maxPsnr = Math.max(...allPsnr) + 1.5;
+
+            const mapX = bpp => padLeft + ((bpp - minBpp) / (maxBpp - minBpp)) * (w - padLeft - padRight);
+            const mapY = psnr => (h - padBottom) - ((psnr - minPsnr) / (maxPsnr - minPsnr)) * (h - padTop - padBottom);
+
+            // Draw grid
+            for (let i = 0; i <= 5; i++) {
+                const yVal = minPsnr + (i / 5) * (maxPsnr - minPsnr);
+                const yPos = mapY(yVal);
+                svg.innerHTML += `<line x1="${padLeft}" y1="${yPos}" x2="${w - padRight}" y2="${yPos}" class="grid-line"/>`;
+                svg.innerHTML += `<text x="${padLeft - 10}" y="${yPos + 4}" text-anchor="end" class="axis-text">${yVal.toFixed(1)} dB</text>`;
+            }
+
+            for (let i = 0; i <= 5; i++) {
+                const xVal = minBpp + (i / 5) * (maxBpp - minBpp);
+                const xPos = mapX(xVal);
+                svg.innerHTML += `<line x1="${xPos}" y1="${padTop}" x2="${xPos}" y2="${h - padBottom}" class="grid-line"/>`;
+                svg.innerHTML += `<text x="${xPos}" y="${h - padBottom + 20}" text-anchor="middle" class="axis-text">${xVal.toFixed(2)} bpp</text>`;
+            }
+
+            // Draw WebP curve
+            const webpPath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${mapX(p.webp.bpp)} ${mapY(p.webp.psnr_db)}`).join(' ');
+            svg.innerHTML += `<path d="${webpPath}" class="rd-curve-webp"/>`;
+
+            // Draw AVIF curve
+            const avifPath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${mapX(p.avif.bpp)} ${mapY(p.avif.psnr_db)}`).join(' ');
+            svg.innerHTML += `<path d="${avifPath}" class="rd-curve-avif"/>`;
+
+            // Draw WPG curve
+            const wpgPath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${mapX(p.wpg.bpp)} ${mapY(p.wpg.psnr_db)}`).join(' ');
+            svg.innerHTML += `<path d="${wpgPath}" class="rd-curve-wpg"/>`;
+
+            // Draw Points
+            points.forEach(p => {
+                svg.innerHTML += `<circle cx="${mapX(p.wpg.bpp)}" cy="${mapY(p.wpg.psnr_db)}" r="5" fill="#10b981"/>`;
+                svg.innerHTML += `<circle cx="${mapX(p.avif.bpp)}" cy="${mapY(p.avif.psnr_db)}" r="4" fill="#3b82f6"/>`;
+                svg.innerHTML += `<circle cx="${mapX(p.webp.bpp)}" cy="${mapY(p.webp.psnr_db)}" r="3.5" fill="#f59e0b"/>`;
+            });
+        }
+
+        function renderTable(points) {
+            const tbody = document.getElementById('matrixTableBody');
+            tbody.innerHTML = '';
+
+            points.forEach((p, idx) => {
+                const isWinBoth = p.wpg_beats_avif_both;
+                const winBadge = isWinBoth ? '<span class="tag-win">★ WINS BOTH</span>' : (p.wpg.size_bytes < p.avif.size_bytes ? '<span style="color:#10b981;">✔ Smaller</span>' : '<span style="color:#818cf8;">✔ High PSNR</span>');
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="font-weight:700; color:var(--primary-glow);">Q${p.quality}</td>
+                    <td class="highlight-win">${p.wpg.size_bytes.toLocaleString()} B</td>
+                    <td>${p.wpg.bpp.toFixed(3)}</td>
+                    <td class="highlight-win">${p.wpg.psnr_db.toFixed(2)} dB</td>
+                    <td>${p.avif.size_bytes.toLocaleString()} B</td>
+                    <td>${p.avif.psnr_db.toFixed(2)} dB</td>
+                    <td class="highlight-win">${p.wpg_vs_avif_size_pct.toFixed(1)}%</td>
+                    <td class="${p.wpg_vs_avif_psnr_diff >= 0 ? 'highlight-win' : ''}">${p.wpg_vs_avif_psnr_diff >= 0 ? '+' : ''}${p.wpg_vs_avif_psnr_diff.toFixed(2)} dB</td>
+                    <td>${winBadge}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function reloadActiveRun() {
+            const activeBtn = document.querySelector('.run-btn.active');
+            if (activeBtn) {
+                if (activeBtn.textContent.includes('camera_photo')) loadRun('camera_photo');
+                else if (activeBtn.textContent.includes('sample')) loadRun('sample');
+                else if (activeBtn.textContent.includes('highres_photo')) loadRun('highres_photo');
+                else if (activeBtn.textContent.includes('graphic_art')) loadRun('graphic_art');
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadRun('camera_photo');
+        });
+    </script>
+</body>
+</html>

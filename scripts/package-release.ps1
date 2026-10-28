@@ -4,20 +4,47 @@ if (Test-Path $dist) {
 }
 New-Item -ItemType Directory -Path $dist | Out-Null
 
-Copy-Item "target\release\wpg.exe" $dist
-Copy-Item "target\release\wpg-enc.exe" $dist
-Copy-Item "target\release\wpg-dec.exe" $dist
-Copy-Item "wpg-decoder.wasm" $dist
-Copy-Item "wpg-element.js" $dist
-Copy-Item "README.md" $dist
-Copy-Item "DOCUMENTATION.md" $dist
-Copy-Item "SPECIFICATION.md" $dist
+$binaries = @(
+    "wpg.exe",
+    "wpg-enc.exe",
+    "wpg-dec.exe",
+    "wpg-lab.exe",
+    "wpg-view.exe",
+    "wpg_thumb.dll"
+)
 
-$zip = "wpg-v1.0.0-windows-x86_64.zip"
-if (Test-Path $zip) {
-    Remove-Item -Force $zip
+foreach ($b in $binaries) {
+    $p = "target\release\$b"
+    if (Test-Path $p) {
+        Copy-Item $p $dist
+        Write-Host "Included: $b"
+    }
 }
 
-Compress-Archive -Path "$dist\*" -DestinationPath $zip
-Write-Host "Created release archive: $zip"
-Get-Item $zip | Select-Object Name, Length
+$assets = @(
+    "wpg-decoder.wasm",
+    "wpg-element.js",
+    "wpg-worker.js",
+    "README.md",
+    "DOCUMENTATION.md",
+    "SPECIFICATION.md",
+    "LICENSE"
+)
+
+foreach ($a in $assets) {
+    if (Test-Path $a) {
+        Copy-Item $a $dist
+        Write-Host "Included: $a"
+    }
+}
+
+$zipNames = @("wpg-windows-x86_64.zip", "wpg-v1.0.3-windows-x86_64.zip")
+foreach ($zip in $zipNames) {
+    if (Test-Path $zip) {
+        Remove-Item -Force $zip
+    }
+    Compress-Archive -Path "$dist\*" -DestinationPath $zip
+    Write-Host "Created release archive: $zip"
+    Get-Item $zip | Select-Object Name, Length
+}
+

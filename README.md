@@ -8,7 +8,12 @@
 [![npm version](https://img.shields.io/npm/v/wpg-img.svg)](https://www.npmjs.com/package/wpg-img)
 [![CLS: 0.000](https://img.shields.io/badge/CLS-0.000%20(Perfect)-success.svg)]()
 [![PageSpeed](https://img.shields.io/badge/PageSpeed-100%2F100-brightgreen.svg)]()
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Interactive%20Playground-6366f1.svg)](https://frontnetcoin-jpg.github.io/web-progressive-graphic/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+> [!TIP]
+> **Try the Interactive Web Playground Live:** [https://frontnetcoin-jpg.github.io/web-progressive-graphic/](https://frontnetcoin-jpg.github.io/web-progressive-graphic/)  
+> Inspect real-time SVG Rate-Distortion curves, quality sliders, and head-to-head metric podiums against AVIF and WebP directly in your browser without installing anything!
 
 **WPG (.wpg)** is an open, royalty-free, next-generation web image format engineered specifically for high-efficiency asset delivery, high-density Retina/OLED displays, and bandwidth-constrained mobile networks.
 
